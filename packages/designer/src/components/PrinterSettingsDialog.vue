@@ -21,7 +21,7 @@ function blankPrinter(): PrinterConfig {
   return {
     id: '',
     name: '',
-    transport: 'file',
+    transport: 'pdf-download',
     protocol: 'tspl-bitmap',
     dpi: 203,
     density: 10,
@@ -164,11 +164,6 @@ watch(
           <div class="grid2">
             <label>{{ t('printers.name') }}
               <input v-model="draft.name" :placeholder="t('printers.untitled')" />
-            </label>
-            <label v-if="!draftIsClientTarget">{{ t('printers.protocol') }}
-              <select v-model="draft.protocol" disabled>
-                <option value="tspl-bitmap">TSPL bitmap</option>
-              </select>
             </label>
             <label>{{ t('printers.transport') }}
               <select v-model="draft.transport">

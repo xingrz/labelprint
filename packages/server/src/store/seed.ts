@@ -38,7 +38,7 @@ function line(id: string, x: number, y: number, x2: number, y2: number, strokeMm
   return { id, type: 'line', x, y, x2, y2, strokeMm };
 }
 
-export function seedPrinters(): PrinterConfig[] {
+export function seedBrowserPrinters(): PrinterConfig[] {
   return [
     {
       id: 'p_pdf_download',
@@ -60,6 +60,12 @@ export function seedPrinters(): PrinterConfig[] {
       speed: 4,
       direction: 1,
     },
+  ];
+}
+
+export function seedPrinters(): PrinterConfig[] {
+  return [
+    ...seedBrowserPrinters(),
     {
       id: 'p_virtual',
       name: 'Virtual printer (writes to out/)',

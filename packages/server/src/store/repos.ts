@@ -5,7 +5,7 @@ import { JsonStore } from './jsonStore.js';
 import { JsonlStore } from './jsonlStore.js';
 import { DirStore, type Store } from './dirStore.js';
 import { config } from '../config.js';
-import { seedPrinters, seedTemplates } from './seed.js';
+import { seedBrowserPrinters, seedPrinters, seedTemplates } from './seed.js';
 
 export interface Repos {
   // Templates: one file per template (data/templates/<id>.json) — a bad write or a
@@ -47,4 +47,12 @@ export async function seedAll(): Promise<void> {
   await migrateTemplates();
   await repos.templates.seedIfEmpty(seedTemplates());
   await repos.printers.seedIfEmpty(seedPrinters());
+  await ensureBrowserPrinterSeeds();
+}
+
+async function ensureBrowserPrinterSeeds(): Promise<void> {
+  const existing = new Set((await repos.printers.all()).map((p) => p.id));
+  for (const printer of seedBrowserPrinters()) {
+    if (!existing.has(printer.id)) await repos.printers.put(printer);
+  }
 }
