@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Eye, Printer as PrinterIcon } from 'lucide-vue-next';
+import { t } from '../lib/i18n';
 import { printNow, printParams, printTemplate, selectPrintTemplate, state } from '../lib/store';
 
 // Display scale for the preview (px per mm) — large enough to judge layout accurately.
@@ -37,7 +38,7 @@ async function refreshPreview(): Promise<void> {
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
     previewUrl.value = URL.createObjectURL(blob);
   } catch (e) {
-    msg.value = '预览失败：' + (e as Error).message;
+    msg.value = t('print.previewFailed', { message: (e as Error).message });
   } finally {
     busy.value = false;
   }
@@ -50,7 +51,7 @@ async function doPrint(): Promise<void> {
     await printNow();
     msg.value = state.status;
   } catch (e) {
-    msg.value = '失败：' + (e as Error).message;
+    msg.value = t('print.failed', { message: (e as Error).message });
   } finally {
     busy.value = false;
   }
@@ -75,20 +76,20 @@ onBeforeUnmount(() => {
   <div class="print">
     <aside class="form">
       <div class="form-head">
-        <h2>打印</h2>
-        <span class="muted">按实际 203dpi 预览输出</span>
+        <h2>{{ t('print.title') }}</h2>
+        <span class="muted">{{ t('print.subtitle') }}</span>
       </div>
 
-      <label class="block">模板
+      <label class="block">{{ t('print.template') }}
         <select :value="state.printTemplateId" @change="onSelect">
-          <option v-if="!state.templates.length" value="">（无模板）</option>
+          <option v-if="!state.templates.length" value="">{{ t('print.noTemplates') }}</option>
           <option v-for="t in state.templates" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
       </label>
 
       <div class="section">
-        <h3>参数填写</h3>
-        <p v-if="!printParams.length" class="muted">该模板没有参数。</p>
+        <h3>{{ t('print.params') }}</h3>
+        <p v-if="!printParams.length" class="muted">{{ t('print.noParams') }}</p>
         <label v-for="k in printParams" :key="k" class="block">
           {{ paramLabel(k) }}
           <textarea v-if="isMultiline(k)" class="multi" rows="3" v-model="state.printValues[k]"></textarea>
@@ -97,19 +98,19 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="grid2">
-        <label>打印机
+        <label>{{ t('print.printer') }}
           <select v-model="state.printPrinterId">
-            <option value="">默认（列表第一个）</option>
+            <option value="">{{ t('print.defaultPrinter') }}</option>
             <option v-for="p in state.printers" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
         </label>
-        <label>份数 <input type="number" min="1" v-model.number="state.printCopies" /></label>
+        <label>{{ t('print.copies') }} <input type="number" min="1" v-model.number="state.printCopies" /></label>
       </div>
 
       <div class="actions">
-        <button :disabled="busy" @click="refreshPreview"><Eye :size="15" /> 刷新预览</button>
+        <button :disabled="busy" @click="refreshPreview"><Eye :size="15" /> {{ t('print.refreshPreview') }}</button>
         <button class="primary" :disabled="busy || !state.printTemplateId" @click="doPrint">
-          <PrinterIcon :size="15" /> 打印
+          <PrinterIcon :size="15" /> {{ t('common.print') }}
         </button>
       </div>
       <p v-if="msg" class="msg mono">{{ msg }}</p>
@@ -118,14 +119,14 @@ onBeforeUnmount(() => {
     <section class="previewpane">
       <div class="preview-head">
         <div>
-          <h2>输出预览</h2>
-          <p class="muted">服务器渲染预览，与当前打印协议输出一致。</p>
+          <h2>{{ t('print.previewTitle') }}</h2>
+          <p class="muted">{{ t('print.previewDescription') }}</p>
         </div>
-        <span v-if="busy" class="busy">生成中</span>
+        <span v-if="busy" class="busy">{{ t('print.generating') }}</span>
       </div>
       <div class="frame">
         <img v-if="previewUrl" :src="previewUrl" class="preview" :style="{ width: previewWidthPx + 'px' }" />
-        <span v-else class="muted ph">填写参数后将自动预览</span>
+        <span v-else class="muted ph">{{ t('print.previewPlaceholder') }}</span>
       </div>
     </section>
   </div>
@@ -236,7 +237,7 @@ onBeforeUnmount(() => {
 .busy {
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #c9dcff;
+  border: 1px solid var(--accent-border);
   border-radius: 999px;
   padding: 3px 9px;
   font-size: 12px;
@@ -251,9 +252,9 @@ onBeforeUnmount(() => {
   align-self: stretch;
   max-width: 100%;
   background:
-    linear-gradient(#d9e0ea 1px, transparent 1px),
-    linear-gradient(90deg, #d9e0ea 1px, transparent 1px),
-    #eef2f7;
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px),
+    var(--canvas-bg);
   background-size: 24px 24px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -267,14 +268,14 @@ onBeforeUnmount(() => {
   max-width: 100%;
   height: auto;
   image-rendering: pixelated;
-  background: #fff;
+  background: var(--paper);
   box-shadow: var(--shadow-paper);
   margin: auto;
 }
 .ph {
   margin: auto;
   padding: 28px 34px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--panel);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
 }

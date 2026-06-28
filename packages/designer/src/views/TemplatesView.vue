@@ -2,6 +2,7 @@
 import { Copy, Pencil, Plus, Printer, Trash2 } from 'lucide-vue-next';
 import { compileToSvg, defaultMediaProfiles, type TemplateDoc } from '@labelprint/shared';
 import { confirmDialog } from '../lib/confirm';
+import { mediaTypeLabel, t } from '../lib/i18n';
 import {
   createTemplate,
   duplicateTemplateById,
@@ -16,8 +17,7 @@ function thumb(t: TemplateDoc): string {
 }
 function mediaLabel(t: TemplateDoc): string {
   const m = t.media;
-  const type = m.type === 'continuous' ? '连续纸' : m.type === 'blackmark' ? '黑标定位' : '间隙定位';
-  return `${m.widthMm}×${m.heightMm} mm · ${type}`;
+  return `${m.widthMm}×${m.heightMm} mm · ${mediaTypeLabel(m.type)}`;
 }
 function onNew(): void {
   createTemplate(state.mediaList[0] ?? defaultMediaProfiles()[0]!);
@@ -26,14 +26,14 @@ function onPrint(t: TemplateDoc): void {
   selectPrintTemplate(t.id);
   state.activeView = 'print';
 }
-async function onDelete(t: TemplateDoc): Promise<void> {
+async function onDelete(tmpl: TemplateDoc): Promise<void> {
   const ok = await confirmDialog({
-    title: `删除模板「${t.name}」？`,
-    message: '此操作不可撤销。',
-    confirmText: '删除',
+    title: t('templates.deleteTitle', { name: tmpl.name }),
+    message: t('templates.deleteMessage'),
+    confirmText: t('common.delete'),
     danger: true,
   });
-  if (ok) removeTemplate(t.id);
+  if (ok) removeTemplate(tmpl.id);
 }
 </script>
 
@@ -41,33 +41,33 @@ async function onDelete(t: TemplateDoc): Promise<void> {
   <div class="templates">
     <div class="head">
       <div>
-        <h2>模板</h2>
-        <p class="muted">选择一个模板进入设计，或复制现有规格快速改版。</p>
+        <h2>{{ t('templates.title') }}</h2>
+        <p class="muted">{{ t('templates.description') }}</p>
       </div>
-      <span class="count">{{ state.templates.length }} 个模板</span>
+      <span class="count">{{ t('common.count.templates', { count: state.templates.length }) }}</span>
       <div class="spacer"></div>
-      <button class="primary" @click="onNew"><Plus :size="15" /> 新建模板</button>
+      <button class="primary" @click="onNew"><Plus :size="15" /> {{ t('templates.new') }}</button>
     </div>
 
     <div v-if="state.templates.length" class="grid">
-      <div v-for="t in state.templates" :key="t.id" class="card">
-        <button class="thumb" title="编辑" @click="openTemplate(t.id)">
-          <div class="thumb-inner" v-html="thumb(t)"></div>
+      <div v-for="tmpl in state.templates" :key="tmpl.id" class="card">
+        <button class="thumb" :title="t('common.edit')" @click="openTemplate(tmpl.id)">
+          <div class="thumb-inner" v-html="thumb(tmpl)"></div>
         </button>
         <div class="meta">
-          <div class="name" :title="t.name">{{ t.name }}</div>
-          <div class="size muted">{{ mediaLabel(t) }}</div>
+          <div class="name" :title="tmpl.name">{{ tmpl.name }}</div>
+          <div class="size muted">{{ mediaLabel(tmpl) }}</div>
         </div>
         <div class="actions">
-          <button class="primary action-main" @click="openTemplate(t.id)"><Pencil :size="15" /> 设计</button>
-          <button class="action-main" @click="onPrint(t)"><Printer :size="15" /> 打印</button>
+          <button class="primary action-main" @click="openTemplate(tmpl.id)"><Pencil :size="15" /> {{ t('common.design') }}</button>
+          <button class="action-main" @click="onPrint(tmpl)"><Printer :size="15" /> {{ t('common.print') }}</button>
           <div class="spacer"></div>
-          <button class="link" title="复制" @click="duplicateTemplateById(t.id)"><Copy :size="15" /></button>
-          <button class="link danger" title="删除" @click="onDelete(t)"><Trash2 :size="15" /></button>
+          <button class="link" :title="t('common.copy')" @click="duplicateTemplateById(tmpl.id)"><Copy :size="15" /></button>
+          <button class="link danger" :title="t('common.delete')" @click="onDelete(tmpl)"><Trash2 :size="15" /></button>
         </div>
       </div>
     </div>
-    <p v-else class="muted empty">还没有模板。点「新建模板」开始。</p>
+    <p v-else class="muted empty">{{ t('templates.empty') }}</p>
   </div>
 </template>
 
@@ -103,7 +103,7 @@ async function onDelete(t: TemplateDoc): Promise<void> {
 .count {
   margin-top: 2px;
   color: var(--text-soft);
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 4px 10px;
@@ -131,7 +131,7 @@ async function onDelete(t: TemplateDoc): Promise<void> {
     transform 120ms ease;
 }
 .card:hover {
-  border-color: #c4d2e4;
+  border-color: var(--border-strong);
   box-shadow: var(--shadow-panel);
   transform: translateY(-1px);
 }
@@ -139,9 +139,9 @@ async function onDelete(t: TemplateDoc): Promise<void> {
   border: none;
   border-radius: 0;
   background:
-    linear-gradient(#dbe2ec 1px, transparent 1px),
-    linear-gradient(90deg, #dbe2ec 1px, transparent 1px),
-    #eef2f7;
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px),
+    var(--canvas-bg);
   background-size: 18px 18px;
   padding: 18px;
   height: 148px;
@@ -151,7 +151,7 @@ async function onDelete(t: TemplateDoc): Promise<void> {
   justify-content: center;
 }
 .thumb:hover {
-  background-color: #e6ebf2;
+  background-color: var(--panel-muted);
 }
 .thumb-inner {
   max-width: 100%;
@@ -163,7 +163,7 @@ async function onDelete(t: TemplateDoc): Promise<void> {
   max-height: 102px;
   width: auto;
   height: auto;
-  background: #fff;
+  background: var(--paper);
   box-shadow: var(--shadow-paper);
 }
 .meta {
@@ -215,7 +215,7 @@ async function onDelete(t: TemplateDoc): Promise<void> {
   padding: 44px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--panel-subtle);
   text-align: center;
 }
 

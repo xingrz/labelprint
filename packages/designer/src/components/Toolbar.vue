@@ -21,58 +21,63 @@ import {
   Trash2,
   Type,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import type { LabelElement } from '@labelprint/shared';
 import IconButton from './IconButton.vue';
+import { t } from '../lib/i18n';
 import { addElement, align, deleteSelected, distribute, duplicateSelected, selectedElements, zorder } from '../lib/store';
 
-const adds: { type: LabelElement['type']; icon: typeof Type; label: string }[] = [
-  { type: 'text', icon: Type, label: '文本' },
-  { type: 'line', icon: Minus, label: '线条' },
-  { type: 'box', icon: Square, label: '矩形' },
-  { type: 'barcode', icon: Barcode, label: '条形码' },
-  { type: 'qrcode', icon: QrCode, label: '二维码' },
-  { type: 'image', icon: ImageIcon, label: '图片' },
-];
+const adds = computed<{ type: LabelElement['type']; icon: typeof Type; label: string }[]>(() => [
+  { type: 'text', icon: Type, label: t('toolbar.addText') },
+  { type: 'line', icon: Minus, label: t('toolbar.addLine') },
+  { type: 'box', icon: Square, label: t('toolbar.addBox') },
+  { type: 'barcode', icon: Barcode, label: t('toolbar.addBarcode') },
+  { type: 'qrcode', icon: QrCode, label: t('toolbar.addQrcode') },
+  { type: 'image', icon: ImageIcon, label: t('toolbar.addImage') },
+]);
 
-const aligns = [
-  { kind: 'left', icon: AlignStartVertical, label: '左对齐' },
-  { kind: 'hcenter', icon: AlignCenterVertical, label: '水平居中' },
-  { kind: 'right', icon: AlignEndVertical, label: '右对齐' },
-  { kind: 'top', icon: AlignStartHorizontal, label: '顶对齐' },
-  { kind: 'vmiddle', icon: AlignCenterHorizontal, label: '垂直居中' },
-  { kind: 'bottom', icon: AlignEndHorizontal, label: '底对齐' },
-] as const;
+const aligns = computed(
+  () =>
+    [
+      { kind: 'left', icon: AlignStartVertical, label: t('toolbar.alignLeft') },
+      { kind: 'hcenter', icon: AlignCenterVertical, label: t('toolbar.alignCenterH') },
+      { kind: 'right', icon: AlignEndVertical, label: t('toolbar.alignRight') },
+      { kind: 'top', icon: AlignStartHorizontal, label: t('toolbar.alignTop') },
+      { kind: 'vmiddle', icon: AlignCenterHorizontal, label: t('toolbar.alignMiddleV') },
+      { kind: 'bottom', icon: AlignEndHorizontal, label: t('toolbar.alignBottom') },
+    ] as const,
+);
 </script>
 
 <template>
   <aside class="toolbar">
     <div class="section">
-      <h3>添加</h3>
+      <h3>{{ t('toolbar.add') }}</h3>
       <div class="grid">
         <IconButton v-for="a in adds" :key="a.type" :icon="a.icon" :label="a.label" @click="addElement(a.type)" />
       </div>
     </div>
 
     <div class="section">
-      <h3>对齐 <span class="muted">选1个=画布 / 多个=相互</span></h3>
+      <h3>{{ t('toolbar.align') }} <span class="muted">{{ t('toolbar.alignHint') }}</span></h3>
       <div class="grid">
         <IconButton v-for="a in aligns" :key="a.kind" :icon="a.icon" :label="a.label" @click="align(a.kind)" />
       </div>
       <div class="grid grid-follow">
-        <IconButton :icon="AlignHorizontalDistributeCenter" label="水平分布(≥3)" :disabled="selectedElements.length < 3" @click="distribute('h')" />
-        <IconButton :icon="AlignVerticalDistributeCenter" label="垂直分布(≥3)" :disabled="selectedElements.length < 3" @click="distribute('v')" />
+        <IconButton :icon="AlignHorizontalDistributeCenter" :label="t('toolbar.distributeH')" :disabled="selectedElements.length < 3" @click="distribute('h')" />
+        <IconButton :icon="AlignVerticalDistributeCenter" :label="t('toolbar.distributeV')" :disabled="selectedElements.length < 3" @click="distribute('v')" />
       </div>
     </div>
 
     <div class="section">
-      <h3>排列 / 编辑</h3>
+      <h3>{{ t('toolbar.orderEdit') }}</h3>
       <div class="grid">
-        <IconButton :icon="BringToFront" label="置顶" :disabled="!selectedElements.length" @click="zorder('front')" />
-        <IconButton :icon="SendToBack" label="置底" :disabled="!selectedElements.length" @click="zorder('back')" />
-        <IconButton :icon="ChevronUp" label="上移一层" :disabled="!selectedElements.length" @click="zorder('forward')" />
-        <IconButton :icon="ChevronDown" label="下移一层" :disabled="!selectedElements.length" @click="zorder('backward')" />
-        <IconButton :icon="Copy" label="复制" :disabled="!selectedElements.length" @click="duplicateSelected()" />
-        <IconButton :icon="Trash2" label="删除" danger :disabled="!selectedElements.length" @click="deleteSelected()" />
+        <IconButton :icon="BringToFront" :label="t('toolbar.front')" :disabled="!selectedElements.length" @click="zorder('front')" />
+        <IconButton :icon="SendToBack" :label="t('toolbar.back')" :disabled="!selectedElements.length" @click="zorder('back')" />
+        <IconButton :icon="ChevronUp" :label="t('toolbar.forward')" :disabled="!selectedElements.length" @click="zorder('forward')" />
+        <IconButton :icon="ChevronDown" :label="t('toolbar.backward')" :disabled="!selectedElements.length" @click="zorder('backward')" />
+        <IconButton :icon="Copy" :label="t('common.copy')" :disabled="!selectedElements.length" @click="duplicateSelected()" />
+        <IconButton :icon="Trash2" :label="t('common.delete')" danger :disabled="!selectedElements.length" @click="deleteSelected()" />
       </div>
     </div>
   </aside>
@@ -83,7 +88,7 @@ const aligns = [
   width: 100%;
   height: 100%;
   flex: none;
-  background: #fff;
+  background: var(--panel);
   border-right: 1px solid var(--border);
   overflow: auto;
 }

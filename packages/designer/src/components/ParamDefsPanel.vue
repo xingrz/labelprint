@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { t } from '../lib/i18n';
 import { setParamDefault, setParamLabel, setParamMultiline, state, usedParams } from '../lib/store';
 
 const open = ref(true);
 
 // Literal "{{ }}" can't appear raw in a Vue template — build the token in script.
 const token = (k: string): string => `{{${k}}}`;
-const PH = '{{参数}}';
+const PH = '{{param}}';
 
 function defOf(key: string) {
   return state.doc?.params.find((p) => p.key === key);
@@ -21,12 +22,12 @@ function currentDefault(key: string): string {
   <div class="section paramdefs">
     <button class="hdr" type="button" @click="open = !open">
       <component :is="open ? ChevronDown : ChevronRight" :size="14" />
-      <span class="ttl">参数 / 默认值</span>
+      <span class="ttl">{{ t('params.title') }}</span>
       <span v-if="usedParams.length" class="cnt">{{ usedParams.length }}</span>
     </button>
 
     <div v-show="open" class="body">
-      <p v-if="!usedParams.length" class="muted">在文本里用 {{ PH }} 占位即可（支持中文）。</p>
+      <p v-if="!usedParams.length" class="muted">{{ t('params.empty', { placeholder: PH }) }}</p>
       <div v-for="k in usedParams" :key="k" class="pdef">
         <div class="pdef-head">
           <code class="key">{{ token(k) }}</code>
@@ -36,26 +37,26 @@ function currentDefault(key: string): string {
               :checked="!!defOf(k)?.multiline"
               @change="setParamMultiline(k, ($event.target as HTMLInputElement).checked)"
             />
-            多行
+            {{ t('params.multiline') }}
           </label>
         </div>
         <input
           class="lbl"
           :value="defOf(k)?.label ?? ''"
-          placeholder="显示名"
+          :placeholder="t('params.labelPlaceholder')"
           @input="setParamLabel(k, ($event.target as HTMLInputElement).value)"
         />
         <textarea
           v-if="defOf(k)?.multiline"
           rows="2"
           :value="currentDefault(k)"
-          placeholder="默认值（回车换行）"
+          :placeholder="t('params.defaultMultilinePlaceholder')"
           @input="setParamDefault(k, ($event.target as HTMLTextAreaElement).value)"
         ></textarea>
         <input
           v-else
           :value="currentDefault(k)"
-          placeholder="默认值"
+          :placeholder="t('params.defaultPlaceholder')"
           @input="setParamDefault(k, ($event.target as HTMLInputElement).value)"
         />
       </div>
@@ -113,7 +114,7 @@ function currentDefault(key: string): string {
   font-size: 11px;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #c9dcff;
+  border: 1px solid var(--accent-border);
   border-radius: 5px;
   padding: 2px 6px;
 }

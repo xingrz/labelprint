@@ -45,7 +45,7 @@ defineEmits<{ (e: 'click'): void }>();
   align-items: center;
   justify-content: center;
   color: var(--text);
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
   min-height: 32px;

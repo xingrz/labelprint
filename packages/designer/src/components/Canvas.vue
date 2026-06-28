@@ -11,6 +11,7 @@ import {
   updateElement,
 } from '../lib/store';
 import { bboxOf, computeSnap, round1, snapToStep, translatePatch, type Box } from '../lib/geometry';
+import { t } from '../lib/i18n';
 
 const stageEl = ref<HTMLDivElement | null>(null);
 
@@ -344,7 +345,7 @@ onUnmounted(() => {
           />
         </svg>
       </div>
-      <div v-else class="empty">在「模板」页选择或新建一个模板</div>
+      <div v-else class="empty">{{ t('canvas.empty') }}</div>
     </div>
   </div>
 </template>
@@ -355,11 +356,10 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   background:
-    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.8), transparent 380px),
-    linear-gradient(#d9e0ea 1px, transparent 1px),
-    linear-gradient(90deg, #d9e0ea 1px, transparent 1px),
-    #eef2f7;
-  background-size: auto, 24px 24px, 24px 24px, auto;
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px),
+    var(--canvas-bg);
+  background-size: 24px 24px, 24px 24px, auto;
   overflow: hidden;
 }
 .canvas-scroll {
@@ -372,7 +372,7 @@ onUnmounted(() => {
 }
 .stage {
   position: relative;
-  background: #fff;
+  background: var(--paper);
   box-shadow: var(--shadow-paper);
   flex: none;
   margin: auto;
@@ -417,7 +417,7 @@ onUnmounted(() => {
   stroke-dasharray: 4 2;
 }
 .overlay .handle {
-  fill: #fff;
+  fill: var(--paper);
   stroke: var(--accent);
   stroke-width: 1.2px;
   pointer-events: all;
@@ -431,7 +431,7 @@ onUnmounted(() => {
   color: var(--muted);
   margin: auto;
   padding: 18px 22px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 1px 2px rgba(24, 32, 51, 0.06);

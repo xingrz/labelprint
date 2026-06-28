@@ -7,6 +7,7 @@ import LabelCanvas from '../components/Canvas.vue';
 import PropertyPanel from '../components/PropertyPanel.vue';
 import ParamDefsPanel from '../components/ParamDefsPanel.vue';
 import ResizeBar from '../components/ResizeBar.vue';
+import { t } from '../lib/i18n';
 import { newTemplate, save, state } from '../lib/store';
 
 function onNew(): void {
@@ -28,24 +29,24 @@ function zoom(d: number): void {
   <div class="design">
     <div class="subbar">
       <div class="template-name">
-        <span class="label">当前模板</span>
-        <input v-if="state.doc" class="name" :value="state.doc.name" @input="onName" placeholder="模板名称" />
+        <span class="label">{{ t('design.currentTemplate') }}</span>
+        <input v-if="state.doc" class="name" :value="state.doc.name" @input="onName" :placeholder="t('design.templateName')" />
       </div>
       <div class="command-group">
-        <IconButton :icon="Save" label="保存模板" :disabled="!state.dirty" @click="save" />
-        <span v-if="state.dirty" class="dirty" title="未保存"><i></i> 未保存</span>
-        <IconButton :icon="Plus" label="新建模板" @click="onNew" />
+        <IconButton :icon="Save" :label="t('design.save')" :disabled="!state.dirty" @click="save" />
+        <span v-if="state.dirty" class="dirty" :title="t('design.unsaved')"><i></i> {{ t('design.unsaved') }}</span>
+        <IconButton :icon="Plus" :label="t('design.new')" @click="onNew" />
       </div>
       <div class="spacer"></div>
       <div class="command-group">
-        <IconButton :icon="ZoomOut" label="缩小" @click="zoom(-2)" />
+        <IconButton :icon="ZoomOut" :label="t('design.zoomOut')" @click="zoom(-2)" />
         <span class="zoom mono">{{ state.view.pxPerMm }}px/mm</span>
-        <IconButton :icon="ZoomIn" label="放大" @click="zoom(2)" />
+        <IconButton :icon="ZoomIn" :label="t('design.zoomIn')" @click="zoom(2)" />
       </div>
       <div class="command-group">
-        <IconButton :icon="Grid3x3" label="显示网格" :active="state.view.showGrid" @click="state.view.showGrid = !state.view.showGrid" />
-        <IconButton :icon="Magnet" label="吸附移动/缩放" :active="state.view.snap" @click="state.view.snap = !state.view.snap" />
-        <label class="step"><span>步长</span><input type="number" step="0.5" min="0" v-model.number="state.view.gridStep" /></label>
+        <IconButton :icon="Grid3x3" :label="t('design.showGrid')" :active="state.view.showGrid" @click="state.view.showGrid = !state.view.showGrid" />
+        <IconButton :icon="Magnet" :label="t('design.snap')" :active="state.view.snap" @click="state.view.snap = !state.view.snap" />
+        <label class="step"><span>{{ t('design.step') }}</span><input type="number" step="0.5" min="0" v-model.number="state.view.gridStep" /></label>
       </div>
     </div>
 
@@ -108,7 +109,7 @@ function zoom(d: number): void {
   gap: 6px;
   flex: none;
   padding: 3px;
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
@@ -125,7 +126,7 @@ function zoom(d: number): void {
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: #f0a400;
+  background: var(--warn);
   box-shadow: 0 0 0 3px var(--warn-soft);
 }
 .zoom {

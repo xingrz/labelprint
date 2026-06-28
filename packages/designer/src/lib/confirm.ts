@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { t } from './i18n';
 
 /**
  * Imperative confirm dialog: `if (await confirmDialog({...})) { ... }`.
@@ -20,8 +21,8 @@ export const confirmState = reactive<ConfirmState>({
   open: false,
   title: '',
   message: '',
-  confirmText: '确定',
-  cancelText: '取消',
+  confirmText: t('confirm.ok'),
+  cancelText: t('confirm.cancel'),
   danger: false,
   resolver: null,
 });
@@ -37,8 +38,8 @@ export interface ConfirmOptions {
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   confirmState.title = opts.title;
   confirmState.message = opts.message ?? '';
-  confirmState.confirmText = opts.confirmText ?? '确定';
-  confirmState.cancelText = opts.cancelText ?? '取消';
+  confirmState.confirmText = opts.confirmText ?? t('confirm.ok');
+  confirmState.cancelText = opts.cancelText ?? t('confirm.cancel');
   confirmState.danger = opts.danger ?? false;
   confirmState.open = true;
   return new Promise<boolean>((resolve) => {

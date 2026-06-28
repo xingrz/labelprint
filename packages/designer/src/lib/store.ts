@@ -14,6 +14,7 @@ import {
 } from '@labelprint/shared';
 import { api } from './api';
 import { bboxOf, translatePatch, unionBox, type Box } from './geometry';
+import { t } from './i18n';
 
 type AlignKind = 'left' | 'hcenter' | 'right' | 'top' | 'vmiddle' | 'bottom';
 export type ViewName = 'templates' | 'design' | 'print' | 'history';
@@ -159,9 +160,9 @@ export async function loadAll(): Promise<void> {
     await loadHistory();
     // Fonts can be a slow first scan on the print host — load without blocking.
     api.fonts().then((r) => (state.fonts = r.families)).catch(() => undefined);
-    setStatus('已连接服务');
+    setStatus(t('status.connected'));
   } catch (e) {
-    setStatus(`无法连接服务：${(e as Error).message}`);
+    setStatus(t('status.connectFailed', { message: (e as Error).message }));
   }
 }
 
@@ -175,7 +176,7 @@ export function selectTemplate(id: string): void {
 
 export function newTemplate(media: MediaProfile): void {
   const id = genId('t');
-  const doc = emptyTemplate(id, `新标签 ${state.templates.length + 1}`, media);
+  const doc = emptyTemplate(id, t('template.newName', { number: state.templates.length + 1 }), media);
   state.templates.push(doc);
   state.doc = clone(doc);
   state.selectedIds = [];
@@ -186,6 +187,7 @@ export function addElement(type: LabelElement['type']): void {
   if (!state.doc) return;
   const el = makeElement(type);
   el.id = genId(type);
+  if (el.type === 'text') el.text = t('props.element.text');
   // place near top-left, nudged so successive adds don't stack exactly
   const n = state.doc.elements.length;
   el.x = 2 + (n % 5) * 1;
@@ -352,9 +354,9 @@ export async function save(): Promise<void> {
     state.doc = clone(saved);
     if (state.printTemplateId === saved.id) selectPrintTemplate(saved.id);
     state.dirty = false;
-    setStatus(`已保存：${saved.name}`);
+    setStatus(t('status.saved', { name: saved.name }));
   } catch (e) {
-    setStatus(`保存失败：${(e as Error).message}`);
+    setStatus(t('status.saveFailed', { message: (e as Error).message }));
   }
 }
 
@@ -366,25 +368,25 @@ export async function removeTemplate(id: string): Promise<void> {
       state.doc = null;
       if (state.templates.length) selectTemplate(state.templates[0]!.id);
     }
-    setStatus('已删除模板');
+    setStatus(t('status.deletedTemplate'));
   } catch (e) {
-    setStatus(`删除失败：${(e as Error).message}`);
+    setStatus(t('status.deleteFailed', { message: (e as Error).message }));
   }
 }
 
-/** Duplicate a template (Save As "… 副本"); stays in the templates list. */
+/** Duplicate a template; stays in the templates list. */
 export async function duplicateTemplateById(id: string): Promise<void> {
   const src = state.templates.find((t) => t.id === id);
   if (!src) return;
   const copy = clone(src);
   copy.id = genId('t');
-  copy.name = `${src.name} 副本`;
+  copy.name = t('template.copySuffix', { name: src.name });
   try {
     const saved = await api.saveTemplate(copy);
     state.templates.push(saved);
-    setStatus(`已复制：${saved.name}`);
+    setStatus(t('status.copied', { name: saved.name }));
   } catch (e) {
-    setStatus(`复制失败：${(e as Error).message}`);
+    setStatus(t('status.copyFailed', { message: (e as Error).message }));
   }
 }
 
@@ -457,14 +459,14 @@ export function selectPrintTemplate(id: string): void {
 }
 
 export async function printNow(): Promise<void> {
-  if (!state.printTemplateId) throw new Error('未选择模板');
+  if (!state.printTemplateId) throw new Error(t('error.noTemplateSelected'));
   const res = await api.print({
     templateId: state.printTemplateId,
     values: state.printValues,
     printerId: state.printPrinterId || undefined,
     copies: state.printCopies,
   });
-  setStatus(`打印（${res.printer}）：${res.detail}`);
+  setStatus(t('status.printed', { printer: res.printer, detail: res.detail }));
   await loadHistory();
 }
 

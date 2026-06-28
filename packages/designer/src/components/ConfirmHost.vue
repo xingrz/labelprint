@@ -45,7 +45,7 @@ function onOpenChange(open: boolean): void {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34);
@@ -74,7 +74,7 @@ function onOpenChange(open: boolean): void {
   padding: 6px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
-  background: #fff;
+  background: var(--field);
   cursor: pointer;
 }
 .lp-cbtn.primary {

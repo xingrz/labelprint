@@ -48,7 +48,7 @@ function onDown(e: PointerEvent): void {
   width: 2px;
   height: 44px;
   transform: translate(-50%, -50%);
-  background: #c7d0dc;
+  background: var(--border-strong);
   border-radius: 999px;
 }
 .resizer:hover::after {

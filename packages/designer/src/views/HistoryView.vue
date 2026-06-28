@@ -2,23 +2,20 @@
 import { RefreshCw, RotateCcw, Trash2 } from 'lucide-vue-next';
 import { clearHistory, deleteHistoryItem, loadHistory, reprintFrom, state } from '../lib/store';
 import { confirmDialog } from '../lib/confirm';
+import { formatDateTime, t } from '../lib/i18n';
 
 async function onClear(): Promise<void> {
   const ok = await confirmDialog({
-    title: '清空全部打印记录？',
-    message: '将删除所有历史记录，不可撤销。',
-    confirmText: '清空',
+    title: t('history.clearTitle'),
+    message: t('history.clearMessage'),
+    confirmText: t('common.clear'),
     danger: true,
   });
   if (ok) clearHistory();
 }
 
 function fmt(ts: string): string {
-  try {
-    return new Date(ts).toLocaleString('zh-CN', { hour12: false });
-  } catch {
-    return ts;
-  }
+  return formatDateTime(ts);
 }
 function summary(v: Record<string, string>): string {
   const e = Object.entries(v);
@@ -30,25 +27,25 @@ function summary(v: Record<string, string>): string {
   <div class="history">
     <div class="hbar">
       <div>
-        <h2>打印记录</h2>
-        <p class="muted">查看近期任务状态，载入历史参数后可快速重打。</p>
+        <h2>{{ t('history.title') }}</h2>
+        <p class="muted">{{ t('history.description') }}</p>
       </div>
-      <span class="count">{{ state.history.length }} 条</span>
+      <span class="count">{{ t('common.count.records', { count: state.history.length }) }}</span>
       <div class="spacer"></div>
-      <button @click="loadHistory"><RefreshCw :size="14" /> 刷新</button>
-      <button class="danger" :disabled="!state.history.length" @click="onClear"><Trash2 :size="14" /> 清空</button>
+      <button @click="loadHistory"><RefreshCw :size="14" /> {{ t('common.refresh') }}</button>
+      <button class="danger" :disabled="!state.history.length" @click="onClear"><Trash2 :size="14" /> {{ t('common.clear') }}</button>
     </div>
 
     <div class="tablewrap">
       <table v-if="state.history.length">
         <thead>
           <tr>
-            <th>时间</th>
-            <th>模板</th>
-            <th>参数</th>
-            <th class="num">份数</th>
-            <th>打印机</th>
-            <th>状态</th>
+            <th>{{ t('history.time') }}</th>
+            <th>{{ t('history.template') }}</th>
+            <th>{{ t('history.params') }}</th>
+            <th class="num">{{ t('history.copies') }}</th>
+            <th>{{ t('history.printer') }}</th>
+            <th>{{ t('history.status') }}</th>
             <th></th>
           </tr>
         </thead>
@@ -59,10 +56,10 @@ function summary(v: Record<string, string>): string {
             <td class="params mono">{{ summary(h.values) }}</td>
             <td class="num">{{ h.copies }}</td>
             <td class="nowrap">{{ h.printer }}</td>
-            <td><span class="badge" :class="h.ok ? 'ok' : 'err'">{{ h.ok ? '成功' : '失败' }}</span></td>
+            <td><span class="badge" :class="h.ok ? 'ok' : 'err'">{{ h.ok ? t('common.success') : t('common.failed') }}</span></td>
             <td class="ops nowrap">
-              <button class="link" title="载入到打印页重打" @click="reprintFrom(h)"><RotateCcw :size="15" /></button>
-              <button class="link danger" title="删除" @click="deleteHistoryItem(h.id)"><Trash2 :size="15" /></button>
+              <button class="link" :title="t('history.reprintTitle')" @click="reprintFrom(h)"><RotateCcw :size="15" /></button>
+              <button class="link danger" :title="t('common.delete')" @click="deleteHistoryItem(h.id)"><Trash2 :size="15" /></button>
             </td>
           </tr>
         </tbody>
@@ -71,21 +68,21 @@ function summary(v: Record<string, string>): string {
         <article v-for="h in state.history" :key="'card-' + h.id" class="record-card">
           <div class="record-head">
             <span class="mono">{{ fmt(h.ts) }}</span>
-            <span class="badge" :class="h.ok ? 'ok' : 'err'">{{ h.ok ? '成功' : '失败' }}</span>
+            <span class="badge" :class="h.ok ? 'ok' : 'err'">{{ h.ok ? t('common.success') : t('common.failed') }}</span>
           </div>
           <div class="record-title">{{ h.templateName }}</div>
           <div class="record-params mono">{{ summary(h.values) }}</div>
           <div class="record-meta">
-            <span>{{ h.copies }} 份</span>
+            <span>{{ t('history.copySuffix', { count: h.copies }) }}</span>
             <span>{{ h.printer }}</span>
           </div>
           <div class="record-ops">
-            <button title="载入到打印页重打" @click="reprintFrom(h)"><RotateCcw :size="15" /> 重打</button>
-            <button class="danger" title="删除" @click="deleteHistoryItem(h.id)"><Trash2 :size="15" /> 删除</button>
+            <button :title="t('history.reprintTitle')" @click="reprintFrom(h)"><RotateCcw :size="15" /> {{ t('history.reprint') }}</button>
+            <button class="danger" :title="t('common.delete')" @click="deleteHistoryItem(h.id)"><Trash2 :size="15" /> {{ t('common.delete') }}</button>
           </div>
         </article>
       </div>
-      <p v-else class="muted empty">暂无打印记录。去「打印」页打一张试试。</p>
+      <p v-else class="muted empty">{{ t('history.empty') }}</p>
     </div>
   </div>
 </template>
@@ -123,7 +120,7 @@ function summary(v: Record<string, string>): string {
 .count {
   margin-top: 2px;
   color: var(--text-soft);
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 4px 10px;
@@ -184,12 +181,12 @@ th {
 .badge.ok {
   background: var(--ok-soft);
   color: var(--ok);
-  border-color: #b6ebcb;
+  border-color: var(--ok-border);
 }
 .badge.err {
   background: var(--danger-soft);
   color: var(--danger);
-  border-color: #efb4b4;
+  border-color: var(--danger-border);
 }
 .ops {
   text-align: right;
@@ -245,7 +242,7 @@ th {
     gap: 10px;
   }
   .record-card {
-    background: #fff;
+    background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 12px;

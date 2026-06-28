@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { DEFAULT_FONT } from '@labelprint/shared';
+import { mediaTypeLabel, t } from '../lib/i18n';
 import { selectedElements, setMediaGeometry, state, updateElement } from '../lib/store';
 import { bboxOf } from '../lib/geometry';
 
@@ -47,48 +48,56 @@ function setDashLen(id: string, e: Event): void {
   updateElement(id, { dash: [len, Math.max(0.3, len * 0.6)] } as never);
 }
 
-// Literal "{{参数}}" cannot appear raw in a Vue template (the parser reads it as
+// Literal "{{param}}" cannot appear raw in a Vue template (the parser reads it as
 // an interpolation), so we surface it through a constant.
-const PH = '{{参数}}';
+const PH = '{{param}}';
 
 const rotations = [0, 90, 180, 270];
-const aligns: [string, string][] = [
-  ['left', '左'],
-  ['center', '中'],
-  ['right', '右'],
-];
-const valigns: [string, string][] = [
-  ['top', '上'],
-  ['middle', '中'],
-  ['bottom', '下'],
-];
+const aligns = computed<[string, string][]>(() => [
+  ['left', t('props.align.left')],
+  ['center', t('props.align.center')],
+  ['right', t('props.align.right')],
+]);
+const valigns = computed<[string, string][]>(() => [
+  ['top', t('props.align.top')],
+  ['middle', t('props.align.middle')],
+  ['bottom', t('props.align.bottom')],
+]);
+const elementTitle = computed<Record<string, string>>(() => ({
+  text: t('props.element.text'),
+  line: t('props.element.line'),
+  box: t('props.element.box'),
+  barcode: t('props.element.barcode'),
+  qrcode: t('props.element.qrcode'),
+  image: t('props.element.image'),
+}));
 </script>
 
 <template>
   <div class="props">
     <div v-if="state.doc" class="section">
-      <h3>标签尺寸</h3>
+      <h3>{{ t('props.mediaSize') }}</h3>
       <div class="col">
         <div class="grid2">
-          <label>宽 (mm)
+          <label>{{ t('props.width') }} (mm)
             <input type="number" step="0.1" :value="state.doc.media.widthMm"
               @input="setMediaGeometry({ widthMm: parseFloat(($event.target as HTMLInputElement).value) || 0 })" />
           </label>
-          <label>高 (mm)
+          <label>{{ t('props.height') }} (mm)
             <input type="number" step="0.1" :value="state.doc.media.heightMm"
               @input="setMediaGeometry({ heightMm: parseFloat(($event.target as HTMLInputElement).value) || 0 })" />
           </label>
         </div>
         <div class="grid2">
-          <label>走纸定位
+          <label>{{ t('props.feedMode') }}
             <select :value="state.doc.media.type"
               @change="setMediaGeometry({ type: ($event.target as HTMLSelectElement).value as any })">
-              <option value="gap">间隙定位</option>
-              <option value="continuous">连续纸</option>
-              <option value="blackmark">黑标定位</option>
+              <option value="gap">{{ mediaTypeLabel('gap') }}</option>
+              <option value="continuous">{{ mediaTypeLabel('continuous') }}</option>
+              <option value="blackmark">{{ mediaTypeLabel('blackmark') }}</option>
             </select>
           </label>
-          <label v-if="state.doc.media.type !== 'continuous'">间隙 (mm)
+          <label v-if="state.doc.media.type !== 'continuous'">{{ t('props.gap') }} (mm)
             <input type="number" step="0.1" :value="state.doc.media.gapMm ?? 2"
               @input="setMediaGeometry({ gapMm: parseFloat(($event.target as HTMLInputElement).value) || 0 })" />
           </label>
@@ -97,7 +106,7 @@ const valigns: [string, string][] = [
     </div>
 
     <div v-if="single && el" class="section">
-      <h3>{{ ({ text: '文本', line: '线条', box: '矩形', barcode: '条码', qrcode: '二维码', image: '图片' } as any)[el.type] }}</h3>
+      <h3>{{ elementTitle[el.type] }}</h3>
 
       <!-- geometry -->
       <template v-if="el.type === 'line'">
@@ -113,14 +122,14 @@ const valigns: [string, string][] = [
           <label>X (mm) <input type="number" step="0.1" :value="el.x" @input="num(el.id, 'x', $event)" /></label>
           <label>Y (mm) <input type="number" step="0.1" :value="el.y" @input="num(el.id, 'y', $event)" /></label>
           <template v-if="el.type === 'qrcode'">
-            <label>边长 (mm) <input type="number" step="0.1" :value="el.size" @input="num(el.id, 'size', $event)" /></label>
+            <label>{{ t('props.side') }} (mm) <input type="number" step="0.1" :value="el.size" @input="num(el.id, 'size', $event)" /></label>
           </template>
           <template v-else>
-            <label>宽 (mm) <input type="number" step="0.1" :value="el.w" @input="num(el.id, 'w', $event)" /></label>
-            <label>高 (mm) <input type="number" step="0.1" :value="el.h" @input="num(el.id, 'h', $event)" /></label>
+            <label>{{ t('props.width') }} (mm) <input type="number" step="0.1" :value="el.w" @input="num(el.id, 'w', $event)" /></label>
+            <label>{{ t('props.height') }} (mm) <input type="number" step="0.1" :value="el.h" @input="num(el.id, 'h', $event)" /></label>
           </template>
         </div>
-        <label class="block">旋转
+        <label class="block">{{ t('props.rotation') }}
           <select :value="el.rotation ?? 0" @change="num(el.id, 'rotation', $event)">
             <option v-for="r in rotations" :key="r" :value="r">{{ r }}°</option>
           </select>
@@ -129,31 +138,31 @@ const valigns: [string, string][] = [
 
       <!-- text props -->
       <template v-if="el.type === 'text'">
-        <label class="block">文本（可用 {{ PH }} 占位）
+        <label class="block">{{ t('props.textValue', { placeholder: PH }) }}
           <textarea rows="2" :value="el.text" @input="str(el.id, 'text', $event)"></textarea>
         </label>
         <div class="grid2">
-          <label>字号 (pt) <input type="number" step="0.5" :value="el.fontSizePt" @input="num(el.id, 'fontSizePt', $event)" /></label>
-          <label>行高 <input type="number" step="0.05" :value="el.lineHeight ?? 1.2" @input="num(el.id, 'lineHeight', $event)" /></label>
+          <label>{{ t('props.fontSize') }} (pt) <input type="number" step="0.5" :value="el.fontSizePt" @input="num(el.id, 'fontSizePt', $event)" /></label>
+          <label>{{ t('props.lineHeight') }} <input type="number" step="0.05" :value="el.lineHeight ?? 1.2" @input="num(el.id, 'lineHeight', $event)" /></label>
         </div>
-        <label class="block">字体
+        <label class="block">{{ t('props.font') }}
           <select :value="fontSelectValue(el)" @change="onFontSelect(el.id, $event)">
-            <option :value="DEFAULT_FONT">默认（中文优先）</option>
+            <option :value="DEFAULT_FONT">{{ t('props.defaultFont') }}</option>
             <option v-for="f in state.fonts" :key="f" :value="f">{{ f }}</option>
-            <option :value="CUSTOM_FONT">自定义…</option>
+            <option :value="CUSTOM_FONT">{{ t('props.customFont') }}</option>
           </select>
           <input
             v-if="isCustomFont(el)"
             class="mt"
             :value="el.fontFamily"
-            placeholder="输入 font-family"
+            :placeholder="t('props.fontPlaceholder')"
             @input="str(el.id, 'fontFamily', $event)"
           />
         </label>
         <div class="row">
-          <button class="tgl bold" :class="{ active: el.fontWeight === 'bold' }" title="粗体"
+          <button class="tgl bold" :class="{ active: el.fontWeight === 'bold' }" :title="t('props.bold')"
             @click="updateElement(el.id, { fontWeight: el.fontWeight === 'bold' ? 'normal' : 'bold' } as never)">B</button>
-          <button class="tgl ital" :class="{ active: !!el.italic }" title="斜体"
+          <button class="tgl ital" :class="{ active: !!el.italic }" :title="t('props.italic')"
             @click="updateElement(el.id, { italic: !el.italic } as never)">I</button>
           <input type="color" class="color" :value="el.color ?? '#000000'" @input="str(el.id, 'color', $event)" />
         </div>
@@ -172,15 +181,15 @@ const valigns: [string, string][] = [
       <!-- line props -->
       <template v-else-if="el.type === 'line'">
         <div class="grid2">
-          <label>线宽 (mm) <input type="number" step="0.05" :value="el.strokeMm" @input="num(el.id, 'strokeMm', $event)" /></label>
-          <label>颜色 <input type="color" class="color" :value="el.color ?? '#000000'" @input="str(el.id, 'color', $event)" /></label>
-          <label>线型
+          <label>{{ t('props.strokeWidth') }} (mm) <input type="number" step="0.05" :value="el.strokeMm" @input="num(el.id, 'strokeMm', $event)" /></label>
+          <label>{{ t('props.color') }} <input type="color" class="color" :value="el.color ?? '#000000'" @input="str(el.id, 'color', $event)" /></label>
+          <label>{{ t('props.lineStyle') }}
             <select :value="el.dash && el.dash.length ? 'dash' : 'solid'" @change="setLineStyle(el.id, $event)">
-              <option value="solid">实线</option>
-              <option value="dash">虚线</option>
+              <option value="solid">{{ t('props.lineSolid') }}</option>
+              <option value="dash">{{ t('props.lineDash') }}</option>
             </select>
           </label>
-          <label v-if="el.dash && el.dash.length">段长 (mm)
+          <label v-if="el.dash && el.dash.length">{{ t('props.dashLength') }} (mm)
             <input type="number" step="0.1" min="0.2" :value="el.dash[0]" @input="setDashLen(el.id, $event)" />
           </label>
         </div>
@@ -189,36 +198,36 @@ const valigns: [string, string][] = [
       <!-- box props -->
       <template v-else-if="el.type === 'box'">
         <div class="grid2">
-          <label>线宽 (mm) <input type="number" step="0.05" :value="el.strokeMm" @input="num(el.id, 'strokeMm', $event)" /></label>
-          <label>圆角 (mm) <input type="number" step="0.1" :value="el.radiusMm ?? 0" @input="num(el.id, 'radiusMm', $event)" /></label>
+          <label>{{ t('props.strokeWidth') }} (mm) <input type="number" step="0.05" :value="el.strokeMm" @input="num(el.id, 'strokeMm', $event)" /></label>
+          <label>{{ t('props.radius') }} (mm) <input type="number" step="0.1" :value="el.radiusMm ?? 0" @input="num(el.id, 'radiusMm', $event)" /></label>
         </div>
         <div class="row">
-          <label class="inline">描边 <input type="color" class="color" :value="el.color ?? '#000000'" @input="str(el.id, 'color', $event)" /></label>
-          <label class="inline">填充
-            <input :value="el.fill ?? 'none'" @input="str(el.id, 'fill', $event)" placeholder="none 或 #000" />
+          <label class="inline">{{ t('props.strokeColor') }} <input type="color" class="color" :value="el.color ?? '#000000'" @input="str(el.id, 'color', $event)" /></label>
+          <label class="inline">{{ t('props.fill') }}
+            <input :value="el.fill ?? 'none'" @input="str(el.id, 'fill', $event)" :placeholder="t('props.fillPlaceholder')" />
           </label>
         </div>
       </template>
 
       <!-- barcode props -->
       <template v-else-if="el.type === 'barcode'">
-        <label class="block">类型
+        <label class="block">{{ t('props.type') }}
           <select :value="el.symbology" @change="str(el.id, 'symbology', $event)">
             <option value="code128">Code128</option>
             <option value="ean13">EAN-13</option>
             <option value="code39">Code39</option>
             <option value="upca">UPC-A</option>
-            <option value="interleaved2of5">交叉25</option>
+            <option value="interleaved2of5">Interleaved 2 of 5</option>
           </select>
         </label>
-        <label class="block">内容 <input :value="el.value" @input="str(el.id, 'value', $event)" /></label>
-        <label class="inline"><input type="checkbox" :checked="!!el.showText" @change="bool(el.id, 'showText', $event)" /> 显示文本</label>
+        <label class="block">{{ t('props.content') }} <input :value="el.value" @input="str(el.id, 'value', $event)" /></label>
+        <label class="inline"><input type="checkbox" :checked="!!el.showText" @change="bool(el.id, 'showText', $event)" /> {{ t('props.showText') }}</label>
       </template>
 
       <!-- qrcode props -->
       <template v-else-if="el.type === 'qrcode'">
-        <label class="block">内容 <input :value="el.value" @input="str(el.id, 'value', $event)" /></label>
-        <label class="block">纠错
+        <label class="block">{{ t('props.content') }} <input :value="el.value" @input="str(el.id, 'value', $event)" /></label>
+        <label class="block">{{ t('props.errorCorrection') }}
           <select :value="el.ecc ?? 'M'" @change="str(el.id, 'ecc', $event)">
             <option value="L">L</option><option value="M">M</option><option value="Q">Q</option><option value="H">H</option>
           </select>
@@ -227,16 +236,16 @@ const valigns: [string, string][] = [
 
       <!-- image props -->
       <template v-else-if="el.type === 'image'">
-        <label class="block">来源 (data URL 或 {{ PH }})
+        <label class="block">{{ t('props.imageSource', { placeholder: PH }) }}
           <input :value="el.src" @input="str(el.id, 'src', $event)" />
         </label>
       </template>
     </div>
 
     <div v-else-if="selectedElements.length > 1" class="section muted">
-      已选 {{ selectedElements.length }} 个元素 · 使用左侧「对齐 / 分布」
+      {{ t('props.multiSelected', { count: selectedElements.length }) }}
     </div>
-    <div v-else class="section muted">未选中元素</div>
+    <div v-else class="section muted">{{ t('props.noneSelected') }}</div>
   </div>
 </template>
 
@@ -305,7 +314,7 @@ label.inline {
   border-radius: 0;
   border: none;
   border-right: 1px solid var(--border);
-  background: #fff;
+  background: var(--field);
   min-width: 34px;
 }
 .seg button:last-child {
