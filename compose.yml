@@ -1,0 +1,44 @@
+# Local development in Linux containers — fonts (Noto CJK), rendering and paths are
+# identical to production. Source is mounted for hot reload.
+#   docker compose up --build      ->  open http://localhost:5173
+#
+# Both services run the `dev` image stage (deps + fonts) and override the command.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./packages:/app/packages
+      - ./data:/app/data
+      - ./out:/app/out
+    environment:
+      - LABELPRINT_HOST=0.0.0.0
+      - LABELPRINT_PORT=5179
+      - LABELPRINT_DATA_DIR=/app/data
+      - LABELPRINT_OUT_DIR=/app/out
+    ports:
+      - 5179:5179
+    # Build shared once, then hot-reload the server. After editing packages/shared,
+    # run: docker compose restart server
+    command: sh -c "npm run build -w @labelprint/shared && npm run dev -w @labelprint/server"
+    # USB printer wired to this host? pass it through and use a "device" printer:
+    # devices:
+    #   - '/dev/usb/lp0:/dev/usb/lp0'
+
+  designer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./packages:/app/packages
+    environment:
+      # Vite proxies /api to the server container (see vite.config.ts)
+      - LABELPRINT_API_PROXY=http://server:5179
+    ports:
+      - 5173:5173
+    command: npm run dev -w @labelprint/designer
+    depends_on:
+      - server

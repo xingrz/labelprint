@@ -1,0 +1,24 @@
+{
+  "name": "labelprint",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Parameterized thermal label design and printing system with a visual mm-precise designer, REST API, and pluggable print pipeline.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/designer"
+  ],
+  "scripts": {
+    "build": "npm run build -w @labelprint/shared && npm run build -w @labelprint/designer && npm run build -w @labelprint/server",
+    "dev": "npm run dev -w @labelprint/server",
+    "dev:designer": "npm run dev -w @labelprint/designer",
+    "start": "node packages/server/dist/index.js",
+    "test": "npm run test -w @labelprint/shared && npm run test -w @labelprint/server",
+    "typecheck": "tsc -b --noEmit packages/shared packages/server"
+  }
+}

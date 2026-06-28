@@ -1,0 +1,28 @@
+# Production: one image, the server serves the built designer SPA. Headless, intranet.
+#   docker compose -f compose.deploy.yml up --build -d      ->  http://<host>:5179
+#
+# For a Swarm/Traefik deploy, swap `build` for a pushed `image:` and add deploy labels.
+services:
+  labelprint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: labelprint:latest
+    container_name: labelprint
+    restart: unless-stopped
+    ports:
+      - 5179:5179
+    volumes:
+      - ./data:/data # templates / media / printers / history (JSON store)
+      - ./out:/out # virtual-printer artifacts (.tspl + .png)
+    # --- Printing (pick what matches your wiring) ---
+    # A) Network printer (raw 9100): nothing here — add a "network" printer (its IP) in the UI.
+    # B) USB on this host, write the device directly:
+    # devices:
+    #   - '/dev/usb/lp0:/dev/usb/lp0'
+    # C) Host CUPS raw queue:
+    # environment:
+    #   - CUPS_SERVER=host.docker.internal:631
+    # extra_hosts:
+    #   - 'host.docker.internal:host-gateway'

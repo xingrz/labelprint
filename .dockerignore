@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+node_modules
+out
+data
+.git
+.gitignore
+*.md
+.playwright-mcp
+designer-*.png
+**/*.tsbuildinfo
+.DS_Store
