@@ -1,5 +1,7 @@
 # LabelPrint
 
+![screenshot](./screenshot.png)
+
 LabelPrint is a self-hosted web app for designing and printing parameterized
 thermal labels.
 
