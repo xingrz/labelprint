@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { MediaProfile, PrintRequest, TemplateDoc } from '@labelprint/shared';
+import type { MediaProfile, PrintProtocol, PrintRequest, TemplateDoc } from '@labelprint/shared';
 import { renderTemplate } from './render/raster.js';
-import { buildTsplJob, packMonochrome } from './protocol/tspl.js';
+import { adapterForPrinter } from './protocol/index.js';
 import { createTransport } from './transport/index.js';
 import { config } from './config.js';
 import type { Repos } from './store/repos.js';
@@ -11,6 +11,7 @@ export interface PrintOutcome {
   ok: boolean;
   detail: string;
   printer: string;
+  protocol: PrintProtocol;
   transport: string;
   artifacts: string[];
   job: { bytes: number; widthDots: number; heightDots: number };
@@ -64,16 +65,16 @@ async function resolvePrinter(repos: Repos, printerId?: string) {
   return (
     all[0] ?? {
       id: 'p_virtual',
-      name: '虚拟打印机',
+      name: 'Virtual printer',
       transport: 'file' as const,
-      protocol: 'tspl' as const,
+      protocol: 'tspl-bitmap' as const,
     }
   );
 }
 
 export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOutcome> {
   const doc = await repos.templates.get(req.templateId);
-  if (!doc) throw new Error(`模板不存在: ${req.templateId}`);
+  if (!doc) throw new Error(`Template not found: ${req.templateId}`);
 
   const printer = await resolvePrinter(repos, req.printerId);
   const profile = req.mediaId
@@ -85,8 +86,11 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
   const dpi = em.dpi || 203;
 
   const r = await renderTemplate(doc, req.values, dpi);
-  const mono = packMonochrome(r.pixels, r.width, r.height);
-  const job = buildTsplJob(mono, {
+  const adapter = adapterForPrinter(printer);
+  const job = adapter.build({
+    pixels: r.pixels,
+    width: r.width,
+    height: r.height,
     media: em,
     widthMm: em.widthMm,
     heightMm: em.heightMm ?? doc.media.heightMm,
@@ -95,10 +99,10 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
 
   const jobName = `${doc.id}-${stamp()}`;
   const transport = createTransport(printer, config.outDir);
-  const result = await transport.send(job, jobName);
+  const result = await transport.send(job.data, jobName, job.extension);
 
   const artifacts = result.artifacts ? [...result.artifacts] : [];
-  // For the virtual/file printer, also drop a PNG next to the .tspl for eyeballing.
+  // For the virtual/file printer, also drop a PNG next to the protocol output.
   if (transport.kind === 'file') {
     await fs.mkdir(config.outDir, { recursive: true });
     const pngPath = path.join(config.outDir, `${jobName}.png`);
@@ -110,9 +114,10 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
     ok: result.ok,
     detail: result.detail,
     printer: printer.name,
+    protocol: adapter.id,
     transport: transport.kind,
     artifacts,
-    job: { bytes: job.length, widthDots: r.width, heightDots: r.height },
+    job: { bytes: job.data.length, widthDots: r.width, heightDots: r.height },
     previewPng: r.png.toString('base64'),
   };
 }

@@ -2,9 +2,8 @@ import type { MediaProfile } from '@labelprint/shared';
 
 /**
  * TSPL job builder. We render the whole label to a 1-bpp bitmap and emit it via the
- * TSPL BITMAP command, wrapped in the prelude validated on real hardware (see the
- * notes captured in AGENTS.md). This gives true WYSIWYG and sidesteps the printer's
- * built-in fonts / GB18030 encoding entirely.
+ * TSPL BITMAP command. This gives true WYSIWYG output and sidesteps firmware-specific
+ * text rendering or character encoding issues.
  *
  * Bit polarity: TSPL BITMAP convention is 1 = white (no dot), 0 = black (printed).
  * We pack accordingly. `invert` flips it in case a given firmware expects the opposite

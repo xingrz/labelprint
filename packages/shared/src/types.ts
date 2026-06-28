@@ -97,6 +97,7 @@ export type LabelElement =
   | ImageElement;
 
 export type MediaType = 'continuous' | 'gap' | 'blackmark';
+export type PrintProtocol = 'tspl-bitmap';
 
 /** Snapshot of media geometry embedded in a template (so a template is self-contained). */
 export interface MediaRef {
@@ -146,11 +147,11 @@ export interface MediaProfile {
   gapMm?: number;
   dpi: number;
   marginsMm?: { top: number; right: number; bottom: number; left: number };
-  /** TSPL DENSITY (0-15), default 10. */
+  /** Thermal darkness hint. The bundled TSPL adapter maps this to DENSITY. */
   density: number;
-  /** TSPL SPEED, default 4. */
+  /** Thermal speed hint. The bundled TSPL adapter maps this to SPEED. */
   speed: number;
-  /** TSPL DIRECTION (0 or 1), default 1. */
+  /** Feed direction hint for protocols that expose one. */
   direction: 0 | 1;
 }
 
@@ -160,7 +161,7 @@ export interface PrinterConfig {
   id: string;
   name: string;
   transport: TransportKind;
-  protocol: 'tspl';
+  protocol: PrintProtocol;
   defaultMediaId?: string;
   /** file: output directory (defaults to ./out). */
   outDir?: string;
@@ -194,6 +195,7 @@ export interface PrintRecord {
   copies: number;
   printer: string;
   printerId?: string;
+  protocol?: PrintProtocol;
   transport: string;
   ok: boolean;
   detail: string;

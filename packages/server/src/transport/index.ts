@@ -12,18 +12,18 @@ export interface TransportResult {
 
 export interface Transport {
   readonly kind: string;
-  send(job: Buffer, jobName: string): Promise<TransportResult>;
+  send(job: Buffer, jobName: string, extension?: string): Promise<TransportResult>;
 }
 
-/** Writes the raw job to ./out/<jobName>.tspl — the offline / virtual printer. */
+/** Writes the raw job to ./out/<jobName>.<extension> — the offline / virtual printer. */
 export class FileTransport implements Transport {
   readonly kind = 'file';
   constructor(private readonly outDir: string) {}
-  async send(job: Buffer, jobName: string): Promise<TransportResult> {
+  async send(job: Buffer, jobName: string, extension = 'bin'): Promise<TransportResult> {
     await fs.mkdir(this.outDir, { recursive: true });
-    const p = path.join(this.outDir, `${jobName}.tspl`);
+    const p = path.join(this.outDir, `${jobName}.${extension}`);
     await fs.writeFile(p, job);
-    return { ok: true, detail: `已写入 ${p} (${job.length} 字节)`, artifacts: [p] };
+    return { ok: true, detail: `wrote ${p} (${job.length} bytes)`, artifacts: [p] };
   }
 }
 
@@ -38,7 +38,7 @@ export class DeviceTransport implements Transport {
     } finally {
       await fh.close();
     }
-    return { ok: true, detail: `已写入设备 ${this.device} (${job.length} 字节)` };
+    return { ok: true, detail: `wrote ${job.length} bytes to ${this.device}` };
   }
 }
 
@@ -54,7 +54,7 @@ export class NetworkTransport implements Transport {
       const sock = net.connect(this.port, this.host);
       const timer = setTimeout(() => {
         sock.destroy();
-        reject(new Error(`连接 ${this.host}:${this.port} 超时`));
+        reject(new Error(`connection to ${this.host}:${this.port} timed out`));
       }, 8000);
       sock.on('connect', () => sock.end(job));
       sock.on('error', (e) => {
@@ -63,7 +63,7 @@ export class NetworkTransport implements Transport {
       });
       sock.on('close', () => {
         clearTimeout(timer);
-        resolve({ ok: true, detail: `已发送到 ${this.host}:${this.port} (${job.length} 字节)` });
+        resolve({ ok: true, detail: `sent ${job.length} bytes to ${this.host}:${this.port}` });
       });
     });
   }
@@ -88,8 +88,8 @@ export class CupsTransport implements Transport {
       lp.on('error', reject);
       lp.on('close', (code) =>
         code === 0
-          ? resolve({ ok: true, detail: `lp: ${out.trim() || '已提交打印任务'}` })
-          : reject(new Error(err.trim() || `lp 退出码 ${code}`)),
+          ? resolve({ ok: true, detail: `lp: ${out.trim() || 'submitted print job'}` })
+          : reject(new Error(err.trim() || `lp exited with code ${code}`)),
       );
       lp.stdin.write(job);
       lp.stdin.end();
@@ -100,13 +100,13 @@ export class CupsTransport implements Transport {
 export function createTransport(cfg: PrinterConfig, defaultOutDir: string): Transport {
   switch (cfg.transport) {
     case 'device':
-      if (!cfg.device) throw new Error('device 传输缺少 device 路径');
+      if (!cfg.device) throw new Error('device transport requires a device path');
       return new DeviceTransport(cfg.device);
     case 'network':
-      if (!cfg.host) throw new Error('network 传输缺少 host');
+      if (!cfg.host) throw new Error('network transport requires host');
       return new NetworkTransport(cfg.host, cfg.port ?? 9100);
     case 'cups':
-      if (!cfg.cupsQueue) throw new Error('cups 传输缺少 cupsQueue');
+      if (!cfg.cupsQueue) throw new Error('cups transport requires cupsQueue');
       return new CupsTransport(cfg.cupsQueue, cfg.cupsServer);
     case 'file':
     default:

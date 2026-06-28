@@ -33,14 +33,14 @@ async function main(): Promise<void> {
   } else {
     app.get('/', async () => ({
       ok: true,
-      hint: '设计器尚未构建。开发模式：npm run dev:designer（Vite, http://localhost:5173）。生产：npm run build 后由本服务托管。',
+      hint: 'Designer is not built. In development, run npm run dev:designer (Vite, http://localhost:5173). In production, run npm run build and this server will host the built app.',
       api: '/api/health',
     }));
   }
 
   await app.listen({ host: config.host, port: config.port });
-  app.log.info(`数据目录 ${config.dataDir}`);
-  app.log.info(`输出目录 ${config.outDir}`);
+  app.log.info(`data directory ${config.dataDir}`);
+  app.log.info(`output directory ${config.outDir}`);
 }
 
 main().catch((e) => {

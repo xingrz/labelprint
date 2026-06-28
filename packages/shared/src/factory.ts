@@ -29,7 +29,7 @@ export function defaultText(x = 2, y = 2): TextElement {
     y,
     w: 30,
     h: 6,
-    text: '文本',
+    text: 'Text',
     fontFamily: DEFAULT_FONT,
     fontSizePt: 9,
     fontWeight: 'normal',
@@ -76,7 +76,7 @@ export function defaultMediaProfiles(): MediaProfile[] {
   return [
     {
       id: 'm_40x30_gap',
-      name: '40×30mm 预切标签',
+      name: '40×30 mm gap label',
       widthMm: 40,
       heightMm: 30,
       type: 'gap',
@@ -88,7 +88,7 @@ export function defaultMediaProfiles(): MediaProfile[] {
     },
     {
       id: 'm_80x40_gap',
-      name: '80×40mm 预切标签',
+      name: '80×40 mm gap label',
       widthMm: 80,
       heightMm: 40,
       type: 'gap',
@@ -100,7 +100,7 @@ export function defaultMediaProfiles(): MediaProfile[] {
     },
     {
       id: 'm_80_cont',
-      name: '80mm 连续热敏纸',
+      name: '80 mm continuous paper',
       widthMm: 80,
       heightMm: 40,
       type: 'continuous',

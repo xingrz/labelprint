@@ -33,7 +33,7 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: IdParams }>('/api/templates/:id', async (req, reply) => {
     const t = await repos.templates.get(req.params.id);
-    if (!t) return reply.code(404).send({ error: '模板不存在' });
+    if (!t) return reply.code(404).send({ error: 'Template not found' });
     return t;
   });
 
@@ -69,7 +69,7 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: IdParams }>('/api/templates/:id/params', async (req, reply) => {
     const t = await repos.templates.get(req.params.id);
-    if (!t) return reply.code(404).send({ error: '模板不存在' });
+    if (!t) return reply.code(404).send({ error: 'Template not found' });
     return { params: t.params, used: collectParams(t) };
   });
 
@@ -105,7 +105,7 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       let doc = req.body.doc;
       if (!doc && req.body.templateId) doc = await repos.templates.get(req.body.templateId);
-      if (!doc) return reply.code(400).send({ error: '需要 doc 或 templateId' });
+      if (!doc) return reply.code(400).send({ error: 'doc or templateId is required' });
       const { png } = await renderPreviewPng(doc, req.body.values);
       return reply.header('Content-Type', 'image/png').send(png);
     },
@@ -125,6 +125,7 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
         copies: req.body.copies ?? 1,
         printer: outcome.printer,
         printerId: req.body.printerId,
+        protocol: outcome.protocol,
         transport: outcome.transport,
         ok: outcome.ok,
         detail: outcome.detail,
