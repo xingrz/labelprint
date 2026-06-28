@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Grid3x3, Magnet, Maximize2, Plus, Save, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { defaultMediaProfiles } from '@labelprint/shared';
 import IconButton from '../components/IconButton.vue';
@@ -22,20 +23,53 @@ function onName(e: Event): void {
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 80;
 const CANVAS_PAD = 96;
+const fitMode = ref(false);
+let fitObserver: ResizeObserver | undefined;
 
 function zoom(d: number): void {
+  fitMode.value = false;
   state.view.pxPerMm = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.view.pxPerMm + d));
 }
 
-function fitDesign(): void {
+function canvasScroll(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.canvas-scroll');
+}
+
+function applyFitZoom(): void {
   if (!state.doc) return;
-  const scroll = document.querySelector<HTMLElement>('.canvas-scroll');
+  const scroll = canvasScroll();
   if (!scroll) return;
+  if (scroll.clientWidth <= 0 || scroll.clientHeight <= 0) return;
   const availableW = Math.max(1, scroll.clientWidth - CANVAS_PAD);
   const availableH = Math.max(1, scroll.clientHeight - CANVAS_PAD);
   const fit = Math.floor(Math.min(availableW / state.doc.media.widthMm, availableH / state.doc.media.heightMm));
   state.view.pxPerMm = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
 }
+
+function fitDesign(): void {
+  fitMode.value = true;
+  applyFitZoom();
+}
+
+watch(
+  () => [state.doc?.id, state.doc?.media.widthMm, state.doc?.media.heightMm, state.activeView],
+  () => {
+    if (fitMode.value) void nextTick(applyFitZoom);
+  },
+);
+
+onMounted(() => {
+  void nextTick(() => {
+    const scroll = canvasScroll();
+    if (!scroll) return;
+    fitObserver = new ResizeObserver(() => {
+      if (fitMode.value) applyFitZoom();
+    });
+    fitObserver.observe(scroll);
+  });
+});
+
+onBeforeUnmount(() => fitObserver?.disconnect());
 </script>
 
 <template>
@@ -55,7 +89,7 @@ function fitDesign(): void {
         <IconButton :icon="ZoomOut" :label="t('design.zoomOut')" @click="zoom(-2)" />
         <span class="zoom mono">{{ state.view.pxPerMm }}px/mm</span>
         <IconButton :icon="ZoomIn" :label="t('design.zoomIn')" @click="zoom(2)" />
-        <IconButton :icon="Maximize2" :label="t('design.zoomFit')" @click="fitDesign" />
+        <IconButton :icon="Maximize2" :label="t('design.zoomFit')" :active="fitMode" @click="fitDesign" />
       </div>
       <div class="command-group">
         <IconButton :icon="Grid3x3" :label="t('design.showGrid')" :active="state.view.showGrid" @click="state.view.showGrid = !state.view.showGrid" />
