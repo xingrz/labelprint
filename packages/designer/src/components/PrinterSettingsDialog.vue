@@ -15,6 +15,7 @@ const busy = ref(false);
 const message = ref('');
 
 const selectedPrinter = computed(() => state.printers.find((p) => p.id === selectedId.value) ?? null);
+const draftIsClientTarget = computed(() => isClientTransport(draft.value.transport));
 
 function blankPrinter(): PrinterConfig {
   return {
@@ -48,6 +49,15 @@ function newPrinter(): void {
 
 function normalizePrinter(): PrinterConfig {
   const p = draft.value;
+  if (isClientTransport(p.transport)) {
+    return {
+      ...p,
+      name: p.name.trim() || t('printers.untitled'),
+      protocol: 'tspl-bitmap',
+      transport: p.transport,
+      dpi: Number(p.dpi) || 203,
+    };
+  }
   return {
     ...p,
     name: p.name.trim() || t('printers.untitled'),
@@ -67,10 +77,16 @@ function clamp(v: number, min: number, max: number, fallback: number): number {
 }
 
 function transportLabel(kind: TransportKind): string {
+  if (kind === 'pdf-download') return t('transport.pdfDownload');
+  if (kind === 'browser-print') return t('transport.browserPrint');
   if (kind === 'device') return t('transport.device');
   if (kind === 'cups') return t('transport.cups');
   if (kind === 'network') return t('transport.network');
   return t('transport.file');
+}
+
+function isClientTransport(kind: TransportKind): boolean {
+  return kind === 'pdf-download' || kind === 'browser-print';
 }
 
 async function onSave(): Promise<void> {
@@ -149,25 +165,29 @@ watch(
             <label>{{ t('printers.name') }}
               <input v-model="draft.name" :placeholder="t('printers.untitled')" />
             </label>
-            <label>{{ t('printers.protocol') }}
+            <label v-if="!draftIsClientTarget">{{ t('printers.protocol') }}
               <select v-model="draft.protocol" disabled>
                 <option value="tspl-bitmap">TSPL bitmap</option>
               </select>
             </label>
             <label>{{ t('printers.transport') }}
               <select v-model="draft.transport">
+                <option value="pdf-download">{{ t('transport.pdfDownload') }}</option>
+                <option value="browser-print">{{ t('transport.browserPrint') }}</option>
                 <option value="file">{{ t('transport.file') }}</option>
                 <option value="cups">{{ t('transport.cups') }}</option>
                 <option value="device">{{ t('transport.device') }}</option>
                 <option value="network">{{ t('transport.network') }}</option>
               </select>
             </label>
-            <label>{{ t('printers.dpi') }}
+            <label v-if="!draftIsClientTarget">{{ t('printers.dpi') }}
               <input type="number" min="72" step="1" v-model.number="draft.dpi" />
             </label>
           </div>
 
-          <div class="grid3">
+          <p v-if="draftIsClientTarget" class="client-note">{{ t('printers.clientTargetNote') }}</p>
+
+          <div v-if="!draftIsClientTarget" class="grid3">
             <label>{{ t('printers.density') }}
               <input type="number" min="0" max="15" step="1" v-model.number="draft.density" />
             </label>
@@ -182,7 +202,7 @@ watch(
             </label>
           </div>
 
-          <div class="transport-fields">
+          <div v-if="!draftIsClientTarget" class="transport-fields">
             <label v-if="draft.transport === 'file'">{{ t('printers.outDir') }}
               <input v-model="draft.outDir" placeholder="./out" />
             </label>
@@ -325,6 +345,15 @@ watch(
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding-top: 4px;
+}
+.client-note {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--muted);
+  background: var(--panel-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
 }
 .msg {
   margin: 0;

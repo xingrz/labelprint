@@ -93,6 +93,9 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
   if (!doc) throw new Error(`Template not found: ${req.templateId}`);
 
   const printer = await resolvePrinter(repos, req.printerId);
+  if (printer.transport === 'pdf-download' || printer.transport === 'browser-print') {
+    throw new Error('This printer target is handled by the web browser. Use the web UI to print with it.');
+  }
   const em = effectivePrinterMedia(doc, printer);
   const dpi = em.dpi || 203;
 

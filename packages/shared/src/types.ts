@@ -1,6 +1,6 @@
 /**
  * Core data model. All geometry is in millimetres (mm), origin = top-left of the label.
- * Rotation is in degrees; 0/90/180/270 are the printer-safe values (see notes/AGENTS.md).
+ * Rotation is in degrees; the UI currently constrains labels to 0/90/180/270.
  */
 
 export type Rotation = 0 | 90 | 180 | 270;
@@ -105,7 +105,7 @@ export interface MediaRef {
   /** Fixed label length for gap/blackmark; for continuous this is the design length. */
   heightMm: number;
   type: MediaType;
-  /** Gap between labels in mm (gap media only). */
+  /** Gap or black-mark positioning distance in mm when relevant. */
   gapMm?: number;
 }
 
@@ -135,7 +135,7 @@ export interface TemplateDoc {
   updatedAt?: string;
 }
 
-/** Reusable media stock definition (stored separately, referenced by the designer). */
+/** Effective media/output settings used while creating templates or print jobs. */
 export interface MediaProfile {
   id: string;
   name: string;
@@ -143,7 +143,7 @@ export interface MediaProfile {
   type: MediaType;
   /** Required for gap/blackmark; ignored for continuous. */
   heightMm?: number;
-  /** Gap between labels in mm; default 2. */
+  /** Gap or black-mark positioning distance in mm; default 2. */
   gapMm?: number;
   dpi: number;
   marginsMm?: { top: number; right: number; bottom: number; left: number };
@@ -155,7 +155,7 @@ export interface MediaProfile {
   direction: 0 | 1;
 }
 
-export type TransportKind = 'file' | 'device' | 'cups' | 'network';
+export type TransportKind = 'file' | 'device' | 'cups' | 'network' | 'pdf-download' | 'browser-print';
 
 export interface PrinterConfig {
   id: string;

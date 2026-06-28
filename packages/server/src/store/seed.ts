@@ -41,6 +41,26 @@ function line(id: string, x: number, y: number, x2: number, y2: number, strokeMm
 export function seedPrinters(): PrinterConfig[] {
   return [
     {
+      id: 'p_pdf_download',
+      name: 'PDF download',
+      transport: 'pdf-download',
+      protocol: 'tspl-bitmap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
+    },
+    {
+      id: 'p_browser_print',
+      name: 'Browser print dialog',
+      transport: 'browser-print',
+      protocol: 'tspl-bitmap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
+    },
+    {
       id: 'p_virtual',
       name: 'Virtual printer (writes to out/)',
       transport: 'file',

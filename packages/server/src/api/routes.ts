@@ -16,9 +16,14 @@ function nowIso(): string {
 
 function normalizePrinter(p: PrinterConfig): PrinterConfig {
   const protocol = p.protocol === 'tspl-bitmap' ? p.protocol : 'tspl-bitmap';
+  const transports: PrinterConfig['transport'][] = ['file', 'device', 'cups', 'network', 'pdf-download', 'browser-print'];
+  const transport = transports.includes(p.transport)
+    ? p.transport
+    : 'file';
   return {
     ...p,
     protocol,
+    transport,
     dpi: p.dpi ?? 203,
     density: p.density ?? 10,
     speed: p.speed ?? 4,

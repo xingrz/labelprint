@@ -121,6 +121,16 @@ export const printParams = computed(() =>
   printTemplate.value ? collectParams(printTemplate.value) : [],
 );
 
+function ensurePrintPrinter(): void {
+  if (!state.printers.length) {
+    state.printPrinterId = '';
+    return;
+  }
+  if (!state.printPrinterId || !state.printers.some((p) => p.id === state.printPrinterId)) {
+    state.printPrinterId = state.printers[0]!.id;
+  }
+}
+
 function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 }
@@ -149,6 +159,7 @@ export async function loadAll(): Promise<void> {
     ]);
     state.templates = templates;
     state.printers = printers;
+    ensurePrintPrinter();
     if (!state.doc && templates.length) selectTemplate(templates[0]!.id);
     // Keep the restored print template + values if it still exists; else pick the first.
     if (templates.length && (!state.printTemplateId || !templates.some((t) => t.id === state.printTemplateId)))
@@ -403,14 +414,14 @@ export async function savePrinter(printer: PrinterConfig): Promise<PrinterConfig
   const idx = state.printers.findIndex((p) => p.id === saved.id);
   if (idx >= 0) state.printers[idx] = saved;
   else state.printers.push(saved);
-  if (!state.printPrinterId) state.printPrinterId = saved.id;
+  ensurePrintPrinter();
   return saved;
 }
 
 export async function removePrinter(id: string): Promise<void> {
   await api.deletePrinter(id);
   state.printers = state.printers.filter((p) => p.id !== id);
-  if (state.printPrinterId === id) state.printPrinterId = state.printers[0]?.id ?? '';
+  ensurePrintPrinter();
 }
 
 // ---- param definitions (edited in the design view) ----

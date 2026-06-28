@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Copy, Eye, Printer as PrinterIcon, Settings, TerminalSquare, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import type { PrinterConfig } from '@labelprint/shared';
 import { t } from '../lib/i18n';
 import { printNow, printParams, printTemplate, selectPrintTemplate, state } from '../lib/store';
+import { makeImagePdfBlob, pdfFileName } from '../lib/pdf';
 import PrinterSettingsDialog from '../components/PrinterSettingsDialog.vue';
 
 const frameEl = ref<HTMLDivElement | null>(null);
 const previewUrl = ref('');
+const previewBlob = ref<Blob | null>(null);
+const previewKey = ref('');
 const previewNatural = ref({ w: 0, h: 0 });
 const frameSize = ref({ w: 0, h: 0 });
 const previewZoom = ref<'fit' | number>('fit');
@@ -36,6 +40,10 @@ const previewStyle = computed(() => {
   return { width: `${Math.floor(naturalW * scale)}px` };
 });
 const zoomLabel = computed(() => (previewZoom.value === 'fit' ? t('print.zoomFit') : `${previewZoom.value}px/mm`));
+const selectedPrinter = computed<PrinterConfig | null>(
+  () => state.printers.find((p) => p.id === state.printPrinterId) ?? state.printers[0] ?? null,
+);
+const selectedPrinterIsClient = computed(() => isClientPrinter(selectedPrinter.value));
 const curlHostOptions = computed(() => {
   const current = currentOrigin();
   const opts = [{ value: current, label: t('print.cliHostCurrent', { host: current }) }];
@@ -76,6 +84,9 @@ function paramLabel(k: string): string {
 function isMultiline(k: string): boolean {
   return !!printTemplate.value?.params.find((p) => p.key === k)?.multiline;
 }
+function isClientPrinter(printer: PrinterConfig | null | undefined): boolean {
+  return printer?.transport === 'pdf-download' || printer?.transport === 'browser-print';
+}
 function onSelect(e: Event): void {
   selectPrintTemplate((e.target as HTMLSelectElement).value);
 }
@@ -91,6 +102,16 @@ function normalizeOrigin(input: string): string {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
   const protocol = typeof window === 'undefined' ? 'http:' : window.location.protocol;
   return `${protocol}//${trimmed}`;
+}
+function currentPreviewKey(): string {
+  return `${state.printTemplateId}|${JSON.stringify(state.printValues)}`;
+}
+function setPreviewBlob(blob: Blob): void {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+  previewBlob.value = blob;
+  previewKey.value = currentPreviewKey();
+  previewUrl.value = URL.createObjectURL(blob);
+  previewNatural.value = { w: 0, h: 0 };
 }
 function onPreviewLoad(e: Event): void {
   const img = e.target as HTMLImageElement;
@@ -108,21 +129,30 @@ async function copyCurl(): Promise<void> {
   setTimeout(() => (curlCopied.value = false), 1200);
 }
 
+async function requestPreviewBlob(): Promise<Blob> {
+  if (!state.printTemplateId) throw new Error(t('error.noTemplateSelected'));
+  const res = await fetch('/api/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ templateId: state.printTemplateId, values: state.printValues }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.blob();
+}
+
+async function ensurePreviewBlob(): Promise<Blob> {
+  if (previewBlob.value && previewKey.value === currentPreviewKey()) return previewBlob.value;
+  const blob = await requestPreviewBlob();
+  setPreviewBlob(blob);
+  return blob;
+}
+
 async function refreshPreview(): Promise<void> {
   if (!state.printTemplateId) return;
   busy.value = true;
   msg.value = '';
   try {
-    const res = await fetch('/api/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateId: state.printTemplateId, values: state.printValues }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const blob = await res.blob();
-    if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-    previewUrl.value = URL.createObjectURL(blob);
-    previewNatural.value = { w: 0, h: 0 };
+    setPreviewBlob(await requestPreviewBlob());
   } catch (e) {
     msg.value = t('print.previewFailed', { message: (e as Error).message });
   } finally {
@@ -130,11 +160,146 @@ async function refreshPreview(): Promise<void> {
   }
 }
 
+function loadImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error(t('print.imageLoadFailed')));
+    };
+    img.src = url;
+  });
+}
+
+async function previewAsJpeg(blob: Blob): Promise<{ jpeg: Uint8Array; width: number; height: number }> {
+  const img = await loadImage(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error(t('print.canvasUnavailable'));
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0);
+  const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(t('print.pdfEncodeFailed')))), 'image/jpeg', 0.98);
+  });
+  return {
+    jpeg: new Uint8Array(await jpegBlob.arrayBuffer()),
+    width: canvas.width,
+    height: canvas.height,
+  };
+}
+
+function downloadBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function downloadPdf(printer: PrinterConfig): Promise<void> {
+  const tmpl = printTemplate.value;
+  if (!tmpl) throw new Error(t('error.noTemplateSelected'));
+  const raster = await previewAsJpeg(await ensurePreviewBlob());
+  const pdf = makeImagePdfBlob({
+    jpeg: raster.jpeg,
+    imageWidth: raster.width,
+    imageHeight: raster.height,
+    pageWidthMm: tmpl.media.widthMm,
+    pageHeightMm: tmpl.media.heightMm,
+    copies: state.printCopies,
+  });
+  downloadBlob(pdf, pdfFileName(tmpl.name));
+  state.status = t('status.pdfDownloaded', { printer: printer.name });
+}
+
+function htmlEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function waitForPrintImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images);
+  return Promise.all(
+    images.map(
+      (img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject(new Error(t('print.imageLoadFailed')));
+            }),
+    ),
+  ).then(() => undefined);
+}
+
+async function openBrowserPrint(printer: PrinterConfig): Promise<void> {
+  const tmpl = printTemplate.value;
+  if (!tmpl) throw new Error(t('error.noTemplateSelected'));
+  const blobUrl = URL.createObjectURL(await ensurePreviewBlob());
+  const frame = document.createElement('iframe');
+  frame.style.position = 'fixed';
+  frame.style.left = '-10000px';
+  frame.style.top = '0';
+  frame.style.width = '1px';
+  frame.style.height = '1px';
+  frame.style.border = '0';
+  frame.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(frame);
+
+  const copies = Math.max(1, Math.min(999, Math.floor(state.printCopies || 1)));
+  const page = `<section class="page"><img alt="" src="${htmlEscape(blobUrl)}"></section>`;
+  const doc = frame.contentDocument;
+  if (!doc) throw new Error(t('print.browserPrintFailed'));
+  doc.open();
+  doc.write(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${htmlEscape(tmpl.name)}</title>
+<style>
+@page { size: ${tmpl.media.widthMm}mm ${tmpl.media.heightMm}mm; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+.page { width: ${tmpl.media.widthMm}mm; height: ${tmpl.media.heightMm}mm; overflow: hidden; page-break-after: always; break-after: page; }
+.page:last-child { page-break-after: auto; break-after: auto; }
+img { display: block; width: 100%; height: 100%; object-fit: fill; }
+</style>
+</head>
+<body>${Array.from({ length: copies }, () => page).join('')}</body>
+</html>`);
+  doc.close();
+
+  await waitForPrintImages(doc);
+  const cleanup = () => {
+    URL.revokeObjectURL(blobUrl);
+    frame.remove();
+  };
+  frame.contentWindow?.addEventListener('afterprint', () => setTimeout(cleanup, 500), { once: true });
+  setTimeout(cleanup, 60_000);
+  frame.contentWindow?.focus();
+  frame.contentWindow?.print();
+  state.status = t('status.browserPrintOpened', { printer: printer.name });
+}
+
 async function doPrint(): Promise<void> {
   busy.value = true;
   msg.value = '';
   try {
-    await printNow();
+    const printer = selectedPrinter.value;
+    if (!printer) throw new Error(t('error.noPrinterSelected'));
+    if (printer.transport === 'pdf-download') await downloadPdf(printer);
+    else if (printer.transport === 'browser-print') await openBrowserPrint(printer);
+    else await printNow();
     msg.value = state.status;
   } catch (e) {
     msg.value = t('print.failed', { message: (e as Error).message });
@@ -195,7 +360,7 @@ onMounted(() => {
       <div class="grid2">
         <label>{{ t('print.printer') }}
           <select v-model="state.printPrinterId">
-            <option value="">{{ t('print.defaultPrinter') }}</option>
+            <option v-if="!state.printers.length" value="">{{ t('print.noPrinters') }}</option>
             <option v-for="p in state.printers" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
         </label>
@@ -205,14 +370,20 @@ onMounted(() => {
         <button type="button" class="ghost subtle" @click="printersOpen = true">
           <Settings :size="14" /> {{ t('print.managePrinters') }}
         </button>
-        <button type="button" class="ghost subtle" :disabled="!state.printTemplateId" @click="curlOpen = true">
+        <button
+          type="button"
+          class="ghost subtle"
+          :disabled="!state.printTemplateId || selectedPrinterIsClient"
+          :title="selectedPrinterIsClient ? t('print.cliClientUnavailable') : ''"
+          @click="curlOpen = true"
+        >
           <TerminalSquare :size="14" /> {{ t('print.showCurl') }}
         </button>
       </div>
 
       <div class="actions">
         <button :disabled="busy" @click="refreshPreview"><Eye :size="15" /> {{ t('print.refreshPreview') }}</button>
-        <button class="primary" :disabled="busy || !state.printTemplateId" @click="doPrint">
+        <button class="primary" :disabled="busy || !state.printTemplateId || !selectedPrinter" @click="doPrint">
           <PrinterIcon :size="15" /> {{ t('common.print') }}
         </button>
       </div>
