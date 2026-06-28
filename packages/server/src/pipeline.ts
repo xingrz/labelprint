@@ -99,7 +99,7 @@ async function resolveTarget(repos: Repos, targetId?: string) {
 
 export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOutcome> {
   const rendered = await renderJob(req, repos);
-  if (rendered.delivery === 'download' || rendered.delivery === 'browser-dialog') {
+  if (rendered.delivery === 'download' || rendered.delivery === 'browser-dialog' || rendered.delivery === 'web-bluetooth') {
     throw new Error('This print target is handled by the web browser. Use the web UI to print with it.');
   }
   const target = await resolveTarget(repos, req.targetId);

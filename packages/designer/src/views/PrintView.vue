@@ -5,6 +5,7 @@ import type { PrintTargetConfig } from '@labelprint/shared';
 import { t } from '../lib/i18n';
 import { printNow, printParams, printTemplate, selectPrintTemplate, state } from '../lib/store';
 import { makeImagePdfBlob, pdfFileName } from '../lib/pdf';
+import { connectTsplWebBluetooth } from '../lib/webBluetooth';
 import TargetSettingsDialog from '../components/TargetSettingsDialog.vue';
 import IconButton from '../components/IconButton.vue';
 
@@ -93,7 +94,7 @@ function isMultiline(k: string): boolean {
   return !!printTemplate.value?.params.find((p) => p.key === k)?.multiline;
 }
 function isClientTarget(target: PrintTargetConfig | null | undefined): boolean {
-  return target?.delivery === 'download' || target?.delivery === 'browser-dialog';
+  return target?.delivery === 'download' || target?.delivery === 'browser-dialog' || target?.delivery === 'web-bluetooth';
 }
 function onSelect(e: Event): void {
   selectPrintTemplate((e.target as HTMLSelectElement).value);
@@ -244,14 +245,32 @@ async function downloadPdf(target: PrintTargetConfig): Promise<void> {
 async function downloadTspl(target: PrintTargetConfig): Promise<void> {
   const tmpl = printTemplate.value;
   if (!tmpl) throw new Error(t('error.noTemplateSelected'));
+  const res = await requestRenderedJob(target);
+  downloadBlob(await res.blob(), `${pdfFileName(tmpl.name).replace(/\.pdf$/i, '')}.tspl`);
+  state.status = t('status.tsplDownloaded', { target: target.name });
+}
+
+async function requestRenderedJob(target: PrintTargetConfig): Promise<Response> {
+  if (!state.printTemplateId) throw new Error(t('error.noTemplateSelected'));
   const res = await fetch(renderJobPath(target.id, state.printTemplateId, state.printCopies), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(state.printValues),
   });
   if (!res.ok) throw new Error(await res.text());
-  downloadBlob(await res.blob(), `${pdfFileName(tmpl.name).replace(/\.pdf$/i, '')}.tspl`);
-  state.status = t('status.tsplDownloaded', { target: target.name });
+  return res;
+}
+
+async function printWebBluetoothTspl(target: PrintTargetConfig): Promise<void> {
+  const connection = await connectTsplWebBluetooth(target);
+  try {
+    const res = await requestRenderedJob(target);
+    const job = new Uint8Array(await res.arrayBuffer());
+    const sent = await connection.write(job);
+    state.status = t('status.bluetoothSent', { target: target.name, bytes: sent.bytes, device: sent.deviceName });
+  } finally {
+    connection.close();
+  }
 }
 
 function htmlEscape(s: string): string {
@@ -330,6 +349,7 @@ async function doPrint(): Promise<void> {
     if (target.format === 'pdf' && target.delivery === 'download') await downloadPdf(target);
     else if (target.format === 'browser-print-page') await openBrowserPrint(target);
     else if (target.format === 'tspl-bitmap' && target.delivery === 'download') await downloadTspl(target);
+    else if (target.format === 'tspl-bitmap' && target.delivery === 'web-bluetooth') await printWebBluetoothTspl(target);
     else await printNow();
     msg.value = state.status;
   } catch (e) {

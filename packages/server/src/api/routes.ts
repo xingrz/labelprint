@@ -237,9 +237,6 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
 async function sendRenderedJob(req: PrintRequest, reply: FastifyReply) {
   try {
     const outcome = await renderJob(req, repos);
-    if (outcome.delivery !== 'download') {
-      return reply.code(400).send({ ok: false, error: 'render-job is only available for download targets' });
-    }
     return reply
       .header('Content-Type', 'application/octet-stream')
       .header('Content-Disposition', `attachment; filename="${req.templateId}.${outcome.extension}"`)

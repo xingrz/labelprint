@@ -63,6 +63,18 @@ export function seedTargets(): PrintTargetConfig[] {
       direction: 1,
     },
     {
+      id: 'target_web_bluetooth',
+      name: 'Web Bluetooth TSPL',
+      format: 'tspl-bitmap',
+      delivery: 'web-bluetooth',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
+      bleChunkSize: 20,
+      bleWriteMode: 'without-response',
+    },
+    {
       id: 'target_cups',
       name: 'CUPS raw queue (tspl_raw)',
       format: 'tspl-bitmap',

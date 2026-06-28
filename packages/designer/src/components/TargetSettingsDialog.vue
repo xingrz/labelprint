@@ -17,7 +17,7 @@ const draggingId = ref('');
 const dragOverId = ref('');
 const dragSnapshot = ref<PrintTargetConfig[]>([]);
 
-type TargetPreset = 'pdf-download' | 'browser-print' | 'tspl-download' | 'cups' | 'usb' | 'network';
+type TargetPreset = 'pdf-download' | 'browser-print' | 'tspl-download' | 'web-bluetooth' | 'cups' | 'usb' | 'network';
 
 const selectedTarget = computed(() => state.targets.find((p) => p.id === selectedId.value) ?? null);
 const usesTsplSettings = computed(() => draft.value.format === 'tspl-bitmap');
@@ -77,6 +77,13 @@ function normalizeTarget(): PrintTargetConfig {
     target.host = p.host;
     target.port = Number(p.port) || 9100;
   }
+  if (p.delivery === 'web-bluetooth') {
+    target.bleNamePrefix = p.bleNamePrefix?.trim();
+    target.bleServiceUuid = p.bleServiceUuid?.trim();
+    target.bleCharacteristicUuid = p.bleCharacteristicUuid?.trim();
+    target.bleChunkSize = clamp(Number(p.bleChunkSize), 20, 512, 20);
+    target.bleWriteMode = p.bleWriteMode === 'with-response' ? 'with-response' : 'without-response';
+  }
   return target;
 }
 
@@ -89,6 +96,7 @@ function presetFor(target: Pick<PrintTargetConfig, 'format' | 'delivery'>): Targ
   if (target.format === 'pdf' && target.delivery === 'download') return 'pdf-download';
   if (target.format === 'browser-print-page') return 'browser-print';
   if (target.format === 'tspl-bitmap' && target.delivery === 'download') return 'tspl-download';
+  if (target.format === 'tspl-bitmap' && target.delivery === 'web-bluetooth') return 'web-bluetooth';
   if (target.delivery === 'usb') return 'usb';
   if (target.delivery === 'cups') return 'cups';
   return 'network';
@@ -104,6 +112,10 @@ function applyPreset(preset: TargetPreset): void {
     next.direction ??= 1;
   }
   if (next.delivery === 'network') next.port ??= 9100;
+  if (next.delivery === 'web-bluetooth') {
+    next.bleChunkSize ??= 20;
+    next.bleWriteMode ??= 'without-response';
+  }
   draft.value = next;
 }
 
@@ -111,6 +123,7 @@ function presetFormatDelivery(preset: TargetPreset): { format: PrintJobFormat; d
   if (preset === 'pdf-download') return { format: 'pdf', delivery: 'download' };
   if (preset === 'browser-print') return { format: 'browser-print-page', delivery: 'browser-dialog' };
   if (preset === 'tspl-download') return { format: 'tspl-bitmap', delivery: 'download' };
+  if (preset === 'web-bluetooth') return { format: 'tspl-bitmap', delivery: 'web-bluetooth' };
   if (preset === 'usb') return { format: 'tspl-bitmap', delivery: 'usb' };
   if (preset === 'cups') return { format: 'tspl-bitmap', delivery: 'cups' };
   return { format: 'tspl-bitmap', delivery: 'network' };
@@ -124,6 +137,7 @@ function targetTypeText(preset: TargetPreset): string {
   if (preset === 'pdf-download') return t('targetTypes.pdfDownload');
   if (preset === 'browser-print') return t('targetTypes.browserPrint');
   if (preset === 'tspl-download') return t('targetTypes.tsplDownload');
+  if (preset === 'web-bluetooth') return t('targetTypes.webBluetooth');
   if (preset === 'usb') return t('targetTypes.usb');
   if (preset === 'cups') return t('targetTypes.cups');
   return t('targetTypes.network');
@@ -293,6 +307,7 @@ watch(
                 <option value="pdf-download">{{ t('targetTypes.pdfDownload') }}</option>
                 <option value="browser-print">{{ t('targetTypes.browserPrint') }}</option>
                 <option value="tspl-download">{{ t('targetTypes.tsplDownload') }}</option>
+                <option value="web-bluetooth">{{ t('targetTypes.webBluetooth') }}</option>
                 <option value="cups">{{ t('targetTypes.cups') }}</option>
                 <option value="usb">{{ t('targetTypes.usb') }}</option>
                 <option value="network">{{ t('targetTypes.network') }}</option>
@@ -305,6 +320,7 @@ watch(
 
           <p v-if="!usesTsplSettings" class="client-note">{{ t('targets.browserTargetNote') }}</p>
           <p v-else-if="draft.delivery === 'download'" class="client-note">{{ t('targets.tsplDownloadNote') }}</p>
+          <p v-else-if="draft.delivery === 'web-bluetooth'" class="client-note">{{ t('targets.webBluetoothNote') }}</p>
 
           <div v-if="usesTsplSettings" class="grid3">
             <label>{{ t('targets.density') }}
@@ -339,6 +355,26 @@ watch(
               </label>
               <label>{{ t('targets.port') }}
                 <input type="number" min="1" max="65535" v-model.number="draft.port" placeholder="9100" />
+              </label>
+            </template>
+            <template v-if="draft.delivery === 'web-bluetooth'">
+              <label>{{ t('targets.bleNamePrefix') }}
+                <input v-model="draft.bleNamePrefix" placeholder="Printer" />
+              </label>
+              <label>{{ t('targets.bleServiceUuid') }}
+                <input v-model="draft.bleServiceUuid" placeholder="0xffe0" />
+              </label>
+              <label>{{ t('targets.bleCharacteristicUuid') }}
+                <input v-model="draft.bleCharacteristicUuid" placeholder="0xffe1" />
+              </label>
+              <label>{{ t('targets.bleChunkSize') }}
+                <input type="number" min="20" max="512" step="1" v-model.number="draft.bleChunkSize" />
+              </label>
+              <label>{{ t('targets.bleWriteMode') }}
+                <select v-model="draft.bleWriteMode">
+                  <option value="without-response">{{ t('targets.bleWithoutResponse') }}</option>
+                  <option value="with-response">{{ t('targets.bleWithResponse') }}</option>
+                </select>
               </label>
             </template>
           </div>

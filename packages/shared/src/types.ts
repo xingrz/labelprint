@@ -99,7 +99,7 @@ export type LabelElement =
 export type MediaType = 'continuous' | 'gap' | 'blackmark';
 export type PrintProtocol = 'tspl-bitmap';
 export type PrintJobFormat = 'pdf' | 'browser-print-page' | PrintProtocol;
-export type PrintDelivery = 'download' | 'browser-dialog' | 'cups' | 'usb' | 'network';
+export type PrintDelivery = 'download' | 'browser-dialog' | 'web-bluetooth' | 'cups' | 'usb' | 'network';
 
 /** Snapshot of media geometry embedded in a template (so a template is self-contained). */
 export interface MediaRef {
@@ -180,6 +180,12 @@ export interface PrintTargetConfig {
   /** network: raw socket target (JetDirect 9100). */
   host?: string;
   port?: number;
+  /** web-bluetooth: optional chooser filter and writable GATT endpoint. */
+  bleNamePrefix?: string;
+  bleServiceUuid?: string;
+  bleCharacteristicUuid?: string;
+  bleChunkSize?: number;
+  bleWriteMode?: 'with-response' | 'without-response';
 }
 
 /** Request body for printing: which template, parameter values, copies, optional overrides. */

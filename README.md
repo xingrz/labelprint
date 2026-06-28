@@ -18,7 +18,8 @@ local networks and does not include authentication by default.
 - Server-rendered previews that match the print pipeline.
 - Printer target management from the web UI.
 - Print history with quick reprint.
-- Built-in PDF download, browser print, and TSPL download targets.
+- Built-in PDF download, browser print, TSPL download, and Web Bluetooth TSPL
+  targets.
 - Server-side delivery through USB device paths, CUPS raw queues, or network
   sockets.
 
@@ -51,8 +52,8 @@ http://localhost:5179
 2. Set the label size and feed-positioning mode.
 3. Add elements and placeholders.
 4. Open the Print page and fill the generated form.
-5. Select a target such as PDF download, browser print, TSPL download, CUPS, USB,
-   or network socket.
+5. Select a target such as PDF download, browser print, TSPL download, Web
+   Bluetooth TSPL, CUPS, USB, or network socket.
 6. Print. For server-side targets, open the `CLI` dialog to copy an equivalent
    `curl` command.
 
@@ -94,9 +95,10 @@ Persist these directories:
 - `./data:/data` for templates, print targets, and print history.
 
 Create or edit print targets in the web UI. Browser-managed targets such as PDF
-download, TSPL download, and browser print run on the user's device.
-Server-side targets such as USB device path, CUPS raw queue, and network socket
-run on the LabelPrint host.
+download, TSPL download, Web Bluetooth TSPL, and browser print run on the user's
+device. Web Bluetooth targets need a writable GATT service UUID and
+characteristic UUID configured in the target. Server-side targets such as USB
+device path, CUPS raw queue, and network socket run on the LabelPrint host.
 
 ## REST API
 
@@ -107,7 +109,7 @@ run on the LabelPrint host.
 | `PUT` | `/api/targets/order` | Reorder print targets. |
 | `POST` | `/api/templates/:templateId/preview` | Render a template PNG preview. |
 | `POST` | `/api/targets/:targetId/templates/:templateId/preview` | Render a target-specific PNG preview. |
-| `POST` | `/api/targets/:targetId/templates/:templateId/render-job?copies=1` | Generate a downloadable raw job. |
+| `POST` | `/api/targets/:targetId/templates/:templateId/render-job?copies=1` | Generate raw job bytes for the target. |
 | `POST` | `/api/targets/:targetId/templates/:templateId/print?copies=1` | Print with a server-side target. |
 
 The preview, render-job, and print endpoints accept template parameters directly
