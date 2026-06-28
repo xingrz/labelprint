@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Copy, Eye, Printer as PrinterIcon, Settings, TerminalSquare, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
-import type { PrinterConfig } from '@labelprint/shared';
+import { Copy, Eye, Maximize2, Printer as PrinterIcon, Settings, TerminalSquare, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import type { PrintTargetConfig } from '@labelprint/shared';
 import { t } from '../lib/i18n';
 import { printNow, printParams, printTemplate, selectPrintTemplate, state } from '../lib/store';
 import { makeImagePdfBlob, pdfFileName } from '../lib/pdf';
-import PrinterSettingsDialog from '../components/PrinterSettingsDialog.vue';
+import TargetSettingsDialog from '../components/TargetSettingsDialog.vue';
+import IconButton from '../components/IconButton.vue';
 
 const frameEl = ref<HTMLDivElement | null>(null);
 const previewUrl = ref('');
@@ -16,7 +17,7 @@ const frameSize = ref({ w: 0, h: 0 });
 const previewZoom = ref<'fit' | number>('fit');
 const busy = ref(false);
 const msg = ref('');
-const printersOpen = ref(false);
+const targetsOpen = ref(false);
 const curlOpen = ref(false);
 const curlCopied = ref(false);
 const selectedCurlOrigin = ref('');
@@ -24,26 +25,37 @@ const customCurlOrigin = ref('');
 let debounce: ReturnType<typeof setTimeout> | undefined;
 let ro: ResizeObserver | undefined;
 
-const zoomSteps = [4, 6, 8, 10, 12, 16, 20, 24];
+const MIN_PREVIEW_ZOOM = 2;
+const MAX_PREVIEW_ZOOM = 160;
+const PREVIEW_ZOOM_STEP = 4;
+const fitPreviewPxPerMm = computed(() => {
+  const tmpl = printTemplate.value;
+  if (!tmpl) return 8;
+  const availableW = Math.max(1, frameSize.value.w);
+  const availableH = Math.max(1, frameSize.value.h);
+  const naturalW = previewNatural.value.w || tmpl.media.widthMm * 8;
+  const naturalH = previewNatural.value.h || tmpl.media.heightMm * 8;
+  const scale = Math.max(0.1, Math.min(availableW / naturalW, availableH / naturalH));
+  return Math.max(MIN_PREVIEW_ZOOM, Math.min(MAX_PREVIEW_ZOOM, (naturalW * scale) / tmpl.media.widthMm));
+});
 const previewStyle = computed(() => {
   const tmpl = printTemplate.value;
   if (!tmpl) return {};
   if (previewZoom.value !== 'fit') {
     return { width: `${tmpl.media.widthMm * previewZoom.value}px` };
   }
-  const pad = 36;
-  const availableW = Math.max(1, frameSize.value.w - pad);
-  const availableH = Math.max(1, frameSize.value.h - pad);
+  const availableW = Math.max(1, frameSize.value.w);
+  const availableH = Math.max(1, frameSize.value.h);
   const naturalW = previewNatural.value.w || tmpl.media.widthMm * 8;
   const naturalH = previewNatural.value.h || tmpl.media.heightMm * 8;
   const scale = Math.max(0.1, Math.min(availableW / naturalW, availableH / naturalH));
   return { width: `${Math.floor(naturalW * scale)}px` };
 });
 const zoomLabel = computed(() => (previewZoom.value === 'fit' ? t('print.zoomFit') : `${previewZoom.value}px/mm`));
-const selectedPrinter = computed<PrinterConfig | null>(
-  () => state.printers.find((p) => p.id === state.printPrinterId) ?? state.printers[0] ?? null,
+const selectedTarget = computed<PrintTargetConfig | null>(
+  () => state.targets.find((p) => p.id === state.printTargetId) ?? state.targets[0] ?? null,
 );
-const selectedPrinterIsClient = computed(() => isClientPrinter(selectedPrinter.value));
+const selectedTargetIsClient = computed(() => isClientTarget(selectedTarget.value));
 const curlHostOptions = computed(() => {
   const current = currentOrigin();
   const opts = [{ value: current, label: t('print.cliHostCurrent', { host: current }) }];
@@ -65,7 +77,7 @@ const curlCommand = computed(() => {
   const body = {
     templateId: state.printTemplateId,
     values: state.printValues,
-    printerId: state.printPrinterId || undefined,
+    targetId: state.printTargetId || undefined,
     copies: state.printCopies,
   };
   const json = JSON.stringify(body, null, 2);
@@ -84,8 +96,8 @@ function paramLabel(k: string): string {
 function isMultiline(k: string): boolean {
   return !!printTemplate.value?.params.find((p) => p.key === k)?.multiline;
 }
-function isClientPrinter(printer: PrinterConfig | null | undefined): boolean {
-  return printer?.transport === 'pdf-download' || printer?.transport === 'browser-print';
+function isClientTarget(target: PrintTargetConfig | null | undefined): boolean {
+  return target?.delivery === 'download' || target?.delivery === 'browser-dialog';
 }
 function onSelect(e: Event): void {
   selectPrintTemplate((e.target as HTMLSelectElement).value);
@@ -118,10 +130,9 @@ function onPreviewLoad(e: Event): void {
   previewNatural.value = { w: img.naturalWidth, h: img.naturalHeight };
 }
 function zoom(delta: number): void {
-  const current = previewZoom.value === 'fit' ? 8 : previewZoom.value;
-  const idx = Math.max(0, zoomSteps.findIndex((z) => z >= current));
-  const next = zoomSteps[Math.max(0, Math.min(zoomSteps.length - 1, idx + delta))] ?? 8;
-  previewZoom.value = next;
+  const current = previewZoom.value === 'fit' ? fitPreviewPxPerMm.value : previewZoom.value;
+  const next = Math.round((current + delta * PREVIEW_ZOOM_STEP) / 2) * 2;
+  previewZoom.value = Math.max(MIN_PREVIEW_ZOOM, Math.min(MAX_PREVIEW_ZOOM, next));
 }
 async function copyCurl(): Promise<void> {
   await navigator.clipboard.writeText(curlCommand.value);
@@ -208,7 +219,7 @@ function downloadBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function downloadPdf(printer: PrinterConfig): Promise<void> {
+async function downloadPdf(target: PrintTargetConfig): Promise<void> {
   const tmpl = printTemplate.value;
   if (!tmpl) throw new Error(t('error.noTemplateSelected'));
   const raster = await previewAsJpeg(await ensurePreviewBlob());
@@ -221,7 +232,25 @@ async function downloadPdf(printer: PrinterConfig): Promise<void> {
     copies: state.printCopies,
   });
   downloadBlob(pdf, pdfFileName(tmpl.name));
-  state.status = t('status.pdfDownloaded', { printer: printer.name });
+  state.status = t('status.pdfDownloaded', { target: target.name });
+}
+
+async function downloadTspl(target: PrintTargetConfig): Promise<void> {
+  const tmpl = printTemplate.value;
+  if (!tmpl) throw new Error(t('error.noTemplateSelected'));
+  const res = await fetch('/api/render-job', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      templateId: state.printTemplateId,
+      values: state.printValues,
+      targetId: target.id,
+      copies: state.printCopies,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  downloadBlob(await res.blob(), `${pdfFileName(tmpl.name).replace(/\.pdf$/i, '')}.tspl`);
+  state.status = t('status.tsplDownloaded', { target: target.name });
 }
 
 function htmlEscape(s: string): string {
@@ -243,7 +272,7 @@ function waitForPrintImages(doc: Document): Promise<void> {
   ).then(() => undefined);
 }
 
-async function openBrowserPrint(printer: PrinterConfig): Promise<void> {
+async function openBrowserPrint(target: PrintTargetConfig): Promise<void> {
   const tmpl = printTemplate.value;
   if (!tmpl) throw new Error(t('error.noTemplateSelected'));
   const blobUrl = URL.createObjectURL(await ensurePreviewBlob());
@@ -288,17 +317,18 @@ img { display: block; width: 100%; height: 100%; object-fit: fill; }
   setTimeout(cleanup, 60_000);
   frame.contentWindow?.focus();
   frame.contentWindow?.print();
-  state.status = t('status.browserPrintOpened', { printer: printer.name });
+  state.status = t('status.browserPrintOpened', { target: target.name });
 }
 
 async function doPrint(): Promise<void> {
   busy.value = true;
   msg.value = '';
   try {
-    const printer = selectedPrinter.value;
-    if (!printer) throw new Error(t('error.noPrinterSelected'));
-    if (printer.transport === 'pdf-download') await downloadPdf(printer);
-    else if (printer.transport === 'browser-print') await openBrowserPrint(printer);
+    const target = selectedTarget.value;
+    if (!target) throw new Error(t('error.noTargetSelected'));
+    if (target.format === 'pdf' && target.delivery === 'download') await downloadPdf(target);
+    else if (target.format === 'browser-print-page') await openBrowserPrint(target);
+    else if (target.format === 'tspl-bitmap' && target.delivery === 'download') await downloadTspl(target);
     else await printNow();
     msg.value = state.status;
   } catch (e) {
@@ -340,54 +370,58 @@ onMounted(() => {
         <span class="muted">{{ t('print.subtitle') }}</span>
       </div>
 
-      <label class="block">{{ t('print.template') }}
+      <label class="template-picker block">{{ t('print.template') }}
         <select :value="state.printTemplateId" @change="onSelect">
           <option v-if="!state.templates.length" value="">{{ t('print.noTemplates') }}</option>
           <option v-for="t in state.templates" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
       </label>
 
-      <div class="section">
+      <div class="params-region">
         <h3>{{ t('print.params') }}</h3>
-        <p v-if="!printParams.length" class="muted">{{ t('print.noParams') }}</p>
-        <label v-for="k in printParams" :key="k" class="block">
-          {{ paramLabel(k) }}
-          <textarea v-if="isMultiline(k)" class="multi" rows="3" v-model="state.printValues[k]"></textarea>
-          <input v-else v-model="state.printValues[k]" />
-        </label>
+        <div class="param-scroll">
+          <p v-if="!printParams.length" class="muted">{{ t('print.noParams') }}</p>
+          <label v-for="k in printParams" :key="k" class="block">
+            {{ paramLabel(k) }}
+            <textarea v-if="isMultiline(k)" class="multi" rows="3" v-model="state.printValues[k]"></textarea>
+            <input v-else v-model="state.printValues[k]" />
+          </label>
+        </div>
       </div>
 
-      <div class="grid2">
-        <label>{{ t('print.printer') }}
-          <select v-model="state.printPrinterId">
-            <option v-if="!state.printers.length" value="">{{ t('print.noPrinters') }}</option>
-            <option v-for="p in state.printers" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </label>
-        <label>{{ t('print.copies') }} <input type="number" min="1" v-model.number="state.printCopies" /></label>
-      </div>
-      <div class="secondary-actions">
-        <button type="button" class="ghost subtle" @click="printersOpen = true">
-          <Settings :size="14" /> {{ t('print.managePrinters') }}
-        </button>
-        <button
-          type="button"
-          class="ghost subtle"
-          :disabled="!state.printTemplateId || selectedPrinterIsClient"
-          :title="selectedPrinterIsClient ? t('print.cliClientUnavailable') : ''"
-          @click="curlOpen = true"
-        >
-          <TerminalSquare :size="14" /> {{ t('print.showCurl') }}
-        </button>
-      </div>
+      <div class="print-controls">
+        <div class="grid2">
+          <label>{{ t('print.target') }}
+            <select v-model="state.printTargetId">
+              <option v-if="!state.targets.length" value="">{{ t('print.noTargets') }}</option>
+              <option v-for="p in state.targets" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </label>
+          <label>{{ t('print.copies') }} <input type="number" min="1" v-model.number="state.printCopies" /></label>
+        </div>
+        <div class="secondary-actions">
+          <button type="button" class="ghost subtle" @click="targetsOpen = true">
+            <Settings :size="14" /> {{ t('print.manageTargets') }}
+          </button>
+          <button
+            type="button"
+            class="ghost subtle"
+            :disabled="!state.printTemplateId || selectedTargetIsClient"
+            :title="selectedTargetIsClient ? t('print.cliClientUnavailable') : ''"
+            @click="curlOpen = true"
+          >
+            <TerminalSquare :size="14" /> {{ t('print.showCurl') }}
+          </button>
+        </div>
 
-      <div class="actions">
-        <button :disabled="busy" @click="refreshPreview"><Eye :size="15" /> {{ t('print.refreshPreview') }}</button>
-        <button class="primary" :disabled="busy || !state.printTemplateId || !selectedPrinter" @click="doPrint">
-          <PrinterIcon :size="15" /> {{ t('common.print') }}
-        </button>
+        <div class="actions">
+          <button :disabled="busy" @click="refreshPreview"><Eye :size="15" /> {{ t('print.refreshPreview') }}</button>
+          <button class="primary" :disabled="busy || !state.printTemplateId || !selectedTarget" @click="doPrint">
+            <PrinterIcon :size="15" /> {{ t('common.print') }}
+          </button>
+        </div>
+        <p v-if="msg" class="msg mono">{{ msg }}</p>
       </div>
-      <p v-if="msg" class="msg mono">{{ msg }}</p>
     </aside>
 
     <section class="previewpane">
@@ -398,14 +432,12 @@ onMounted(() => {
         </div>
         <div class="preview-tools">
           <span v-if="busy" class="busy">{{ t('print.generating') }}</span>
-          <button type="button" class="ghost mini" @click="previewZoom = 'fit'">{{ t('print.zoomFit') }}</button>
-          <button type="button" class="ghost icon-mini" :aria-label="t('print.zoomOut')" @click="zoom(-1)">
-            <ZoomOut :size="14" />
-          </button>
-          <span class="zoom mono">{{ zoomLabel }}</span>
-          <button type="button" class="ghost icon-mini" :aria-label="t('print.zoomIn')" @click="zoom(1)">
-            <ZoomIn :size="14" />
-          </button>
+          <div class="command-group">
+            <IconButton :icon="ZoomOut" :label="t('print.zoomOut')" @click="zoom(-1)" />
+            <span class="zoom mono">{{ zoomLabel }}</span>
+            <IconButton :icon="ZoomIn" :label="t('print.zoomIn')" @click="zoom(1)" />
+            <IconButton :icon="Maximize2" :label="t('print.zoomFit')" :active="previewZoom === 'fit'" @click="previewZoom = 'fit'" />
+          </div>
         </div>
       </div>
       <div ref="frameEl" class="frame" :class="{ fit: previewZoom === 'fit', zoomed: previewZoom !== 'fit' }">
@@ -414,7 +446,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <PrinterSettingsDialog :open="printersOpen" @close="printersOpen = false" />
+    <TargetSettingsDialog :open="targetsOpen" @close="targetsOpen = false" />
 
     <div v-if="curlOpen" class="curl-overlay" @pointerdown.self="curlOpen = false">
       <section class="curl-dialog" role="dialog" aria-modal="true" :aria-label="t('print.curlTitle')">
@@ -461,7 +493,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   gap: 20px;
   padding: 22px 24px;
   align-items: stretch;
@@ -470,10 +502,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 0;
+  overflow: hidden;
   box-shadow: 0 1px 2px rgba(24, 32, 51, 0.04);
 }
 .form-head {
@@ -481,7 +515,7 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding-bottom: 4px;
+  padding: 16px 16px 4px;
 }
 .form-head h2,
 .preview-head h2 {
@@ -494,15 +528,39 @@ onMounted(() => {
   text-align: right;
   max-width: 130px;
 }
-.section {
+.template-picker {
+  flex: none;
+  padding: 0 16px;
+}
+.params-region {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-top: 1px solid var(--border);
   padding: 12px 0 0;
 }
-.section h3 {
-  margin: 0 0 8px;
+.params-region h3 {
+  flex: none;
+  margin: 0;
+  padding: 0 16px 8px;
   font-size: 11px;
   text-transform: uppercase;
   color: var(--muted);
+}
+.param-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 16px 0;
+}
+.print-controls {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
 }
 .grid2 {
   display: grid;
@@ -584,18 +642,18 @@ onMounted(() => {
   gap: 6px;
   flex-wrap: wrap;
 }
-.mini,
-.icon-mini {
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 12px;
-}
-.icon-mini {
-  width: 28px;
-  padding: 0;
+.command-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 .zoom {
-  min-width: 58px;
+  min-width: 68px;
   text-align: center;
   color: var(--muted);
   font-size: 11px;
@@ -604,7 +662,7 @@ onMounted(() => {
    is unambiguous — no white padding that could be mistaken for label margin. */
 .frame {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   overflow: hidden;
   align-self: stretch;
   max-width: 100%;
@@ -626,8 +684,10 @@ onMounted(() => {
   justify-content: flex-start;
 }
 .preview {
+  flex: none;
   display: block;
   height: auto;
+  max-width: none;
   image-rendering: pixelated;
   background: var(--paper);
   box-shadow: var(--shadow-paper);
@@ -740,13 +800,17 @@ onMounted(() => {
 
 @media (max-width: 860px) {
   .print {
-    display: flex;
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 28vh) minmax(0, 1fr);
     padding: 16px;
   }
   .previewpane {
-    order: -1;
-    min-height: auto;
+    grid-row: 1;
+    min-height: 0;
+  }
+  .form {
+    grid-row: 2;
+    min-height: 0;
   }
   .preview-head {
     flex-direction: column;
@@ -756,18 +820,37 @@ onMounted(() => {
     justify-content: flex-start;
   }
   .frame {
-    flex: none;
-    height: 370px;
+    flex: 1;
+    min-height: 0;
     max-height: none;
+  }
+  .form {
+    gap: 8px;
+  }
+  .form-head {
+    padding: 12px 13px 2px;
+  }
+  .template-picker {
+    padding: 0 13px;
+  }
+  .params-region {
+    padding-top: 10px;
+  }
+  .params-region h3 {
+    padding: 0 13px 6px;
+  }
+  .param-scroll {
+    padding: 0 13px;
+  }
+  .print-controls {
+    gap: 8px;
+    padding: 10px 13px 13px;
   }
 }
 
 @media (max-width: 520px) {
   .print {
     padding: 12px;
-  }
-  .form {
-    padding: 13px;
   }
   .grid2 {
     grid-template-columns: 1fr;

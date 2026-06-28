@@ -30,8 +30,8 @@ not the product identity.
 - `packages/shared/src/params.ts`: placeholder extraction and substitution.
 - `packages/shared/src/units.ts`: millimetre, dot, and point helpers.
 - `packages/server/src/api/routes.ts`: REST API.
-- `packages/server/src/pipeline.ts`: template + values + printer -> rendered job
-  -> transport.
+- `packages/server/src/pipeline.ts`: template + values + print target ->
+  rendered job -> delivery adapter.
 - `packages/server/src/render/`: server-side SVG rasterization and asset helpers.
 - `packages/server/src/protocol/`: output protocol adapters.
 - `packages/server/src/transport/`: delivery adapters.
@@ -52,10 +52,11 @@ use this file as an index and policy record rather than a duplicate spec.
   protocol-generation boundaries, not in template documents.
 - The designer preview and server print path should keep using the shared compiler
   unless there is an explicit compatibility reason to split them.
-- Template documents own label geometry and feed-positioning mode. Printer records
-  own output settings such as protocol, transport, DPI, density, speed, and
-  direction. Some targets are browser-managed; check `types.ts`, `PrintView.vue`,
-  `pipeline.ts`, printer UI, and README together when changing this split.
+- Template documents own label geometry and feed-positioning mode. Print targets
+  combine an output format (`pdf`, `browser-print-page`, `tspl-bitmap`) with a
+  delivery method (`download`, `browser-dialog`, `cups`, `usb`, `network`).
+  Check `types.ts`, `PrintView.vue`, `pipeline.ts`, target UI, and README
+  together when changing this split.
 - Paper canvases and label previews should remain white in dark mode.
 - User-visible UI strings should go through `i18n.ts`.
 
@@ -69,19 +70,19 @@ pipeline. New protocol work usually needs changes in:
 - `packages/server/src/protocol/` for adapter implementation and registration.
 - `packages/server/src/pipeline.ts` if the adapter needs different input or
   artifact handling.
-- `packages/designer/src/components/PrinterSettingsDialog.vue` if users can
+- `packages/designer/src/components/TargetSettingsDialog.vue` if users can
   select or configure it.
 
-Browser print and PDF download are currently browser-managed printer targets.
-`pdf-download` uses `packages/designer/src/lib/pdf.ts`; `browser-print` creates a
-print-formatted iframe in `PrintView.vue` and calls `window.print()`. Normal web
-pages cannot reliably choose a printer or silently print, so keep that UX
+Browser print, PDF download, and TSPL download are browser-managed print
+targets. PDF download uses `packages/designer/src/lib/pdf.ts`; browser print
+creates a print-formatted iframe in `PrintView.vue` and calls `window.print()`;
+TSPL download uses `/api/render-job` and downloads the returned bytes. Normal web
+pages cannot reliably choose a physical device or silently print, so keep that UX
 explicit.
 
-Server-side transports are delivery mechanisms. Keep raw device, CUPS, network
-socket, and file behavior under `packages/server/src/transport/`. The REST print
-pipeline should reject browser-managed targets instead of pretending the server
-can perform those user-agent actions.
+Server-side delivery mechanisms live under `packages/server/src/transport/`.
+The REST print pipeline should reject browser-managed targets instead of
+pretending the server can perform those user-agent actions.
 
 ## Runtime Data
 
@@ -89,7 +90,7 @@ Current stores are file-backed and live behind repository interfaces in
 `packages/server/src/store/`:
 
 - Templates: JSON files under `data/templates/`.
-- Printers: `data/printers.json`, managed through UI and API.
+- Print targets: `data/targets.json`, managed through UI and API.
 - History: append-oriented `data/history.jsonl`.
 
 There is no active persisted media catalog. If an old `data/media.json` exists in

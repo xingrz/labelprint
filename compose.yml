@@ -12,18 +12,16 @@ services:
     volumes:
       - ./packages:/app/packages
       - ./data:/app/data
-      - ./out:/app/out
     environment:
       - LABELPRINT_HOST=0.0.0.0
       - LABELPRINT_PORT=5179
       - LABELPRINT_DATA_DIR=/app/data
-      - LABELPRINT_OUT_DIR=/app/out
     ports:
       - 5179:5179
     # Build shared once, then hot-reload the server. After editing packages/shared,
     # run: docker compose restart server
     command: sh -c "npm run build -w @labelprint/shared && npm run dev -w @labelprint/server"
-    # USB printer wired to this host? pass it through and use a "device" printer:
+    # USB printer wired to this host? pass it through and use a USB target:
     # devices:
     #   - '/dev/usb/lp0:/dev/usb/lp0'
 

@@ -14,7 +14,6 @@ export const config = {
   host: process.env.LABELPRINT_HOST ?? '0.0.0.0',
   port: Number(process.env.LABELPRINT_PORT ?? 5179),
   dataDir: envPath('LABELPRINT_DATA_DIR', path.join(REPO_ROOT, 'data')),
-  outDir: envPath('LABELPRINT_OUT_DIR', path.join(REPO_ROOT, 'out')),
   designerDist: envPath('LABELPRINT_DESIGNER_DIST', path.join(REPO_ROOT, 'packages/designer/dist')),
 };
 

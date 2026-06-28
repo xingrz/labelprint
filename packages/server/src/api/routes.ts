@@ -2,32 +2,25 @@ import type { FastifyInstance } from 'fastify';
 import {
   collectParams,
   syncParamDefs,
-  type PrinterConfig,
   type PrintRequest,
+  type PrintTargetConfig,
   type TemplateDoc,
 } from '@labelprint/shared';
 import { addHistory, repos } from '../store/repos.js';
-import { renderPreviewPng, runPrint } from '../pipeline.js';
+import { renderJob, renderPreviewPng, runPrint } from '../pipeline.js';
 import { listFontFamilies } from '../fonts.js';
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function normalizePrinter(p: PrinterConfig): PrinterConfig {
-  const protocol = p.protocol === 'tspl-bitmap' ? p.protocol : 'tspl-bitmap';
-  const transports: PrinterConfig['transport'][] = ['file', 'device', 'cups', 'network', 'pdf-download', 'browser-print'];
-  const transport = transports.includes(p.transport)
-    ? p.transport
-    : 'file';
+function normalizeTarget(t: PrintTargetConfig): PrintTargetConfig {
   return {
-    ...p,
-    protocol,
-    transport,
-    dpi: p.dpi ?? 203,
-    density: p.density ?? 10,
-    speed: p.speed ?? 4,
-    direction: p.direction ?? 1,
+    ...t,
+    dpi: t.dpi ?? 203,
+    density: t.density ?? 10,
+    speed: t.speed ?? 4,
+    direction: t.direction ?? 1,
   };
 }
 
@@ -89,17 +82,34 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     return { params: t.params, used: collectParams(t) };
   });
 
-  // ---- printers ----
-  app.get('/api/printers', async () => (await repos.printers.all()).map(normalizePrinter));
-  app.post<{ Body: PrinterConfig }>('/api/printers', async (req) => {
-    const p = normalizePrinter({ ...req.body, id: req.body.id || `p_${Date.now().toString(36)}` });
-    return repos.printers.put(p);
+  // ---- print targets ----
+  app.get('/api/targets', async () => (await repos.targets.all()).map(normalizeTarget));
+  app.post<{ Body: PrintTargetConfig }>('/api/targets', async (req) => {
+    const target = normalizeTarget({ ...req.body, id: req.body.id || `target_${Date.now().toString(36)}` });
+    return repos.targets.put(target);
   });
-  app.put<{ Params: IdParams; Body: PrinterConfig }>('/api/printers/:id', async (req) =>
-    repos.printers.put(normalizePrinter({ ...req.body, id: req.params.id })),
+  app.put<{ Body: { ids?: unknown } }>('/api/targets/order', async (req, reply) => {
+    const ids = req.body.ids;
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) {
+      return reply.code(400).send({ error: 'ids must be a string array' });
+    }
+    const existing = await repos.targets.all();
+    const byId = new Map(existing.map((target) => [target.id, target]));
+    const seen = new Set<string>();
+    const ordered: PrintTargetConfig[] = [];
+    for (const id of ids) {
+      const target = byId.get(id);
+      if (!target || seen.has(id)) continue;
+      ordered.push(target);
+      seen.add(id);
+    }
+    return repos.targets.replaceAll([...ordered, ...existing.filter((target) => !seen.has(target.id))]);
+  });
+  app.put<{ Params: IdParams; Body: PrintTargetConfig }>('/api/targets/:id', async (req) =>
+    repos.targets.put(normalizeTarget({ ...req.body, id: req.params.id })),
   );
-  app.delete<{ Params: IdParams }>('/api/printers/:id', async (req) => ({
-    deleted: await repos.printers.delete(req.params.id),
+  app.delete<{ Params: IdParams }>('/api/targets/:id', async (req) => ({
+    deleted: await repos.targets.delete(req.params.id),
   }));
 
   // ---- preview: high-fidelity server raster (resvg) ----
@@ -114,6 +124,21 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     },
   );
 
+  app.post<{ Body: PrintRequest }>('/api/render-job', async (req, reply) => {
+    try {
+      const outcome = await renderJob(req.body, repos);
+      if (outcome.delivery !== 'download') {
+        return reply.code(400).send({ ok: false, error: 'render-job is only available for download targets' });
+      }
+      return reply
+        .header('Content-Type', 'application/octet-stream')
+        .header('Content-Disposition', `attachment; filename="${req.body.templateId}.${outcome.extension}"`)
+        .send(outcome.data);
+    } catch (e: unknown) {
+      return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   // ---- print ----
   app.post<{ Body: PrintRequest }>('/api/print', async (req, reply) => {
     try {
@@ -126,10 +151,10 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
         templateName: tmpl?.name ?? req.body.templateId,
         values: req.body.values ?? {},
         copies: req.body.copies ?? 1,
-        printer: outcome.printer,
-        printerId: req.body.printerId,
-        protocol: outcome.protocol,
-        transport: outcome.transport,
+        target: outcome.target,
+        targetId: req.body.targetId,
+        format: outcome.format,
+        delivery: outcome.delivery,
         ok: outcome.ok,
         detail: outcome.detail,
         widthDots: outcome.job.widthDots,

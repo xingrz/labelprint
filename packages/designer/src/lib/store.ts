@@ -8,8 +8,8 @@ import {
   type MediaProfile,
   type MediaType,
   type ParamDef,
-  type PrinterConfig,
   type PrintRecord,
+  type PrintTargetConfig,
   type TemplateDoc,
 } from '@labelprint/shared';
 import { api } from './api';
@@ -34,7 +34,7 @@ interface SavedPrint {
   v?: ViewName;
   t?: string;
   vals?: Record<string, string>;
-  p?: string;
+  target?: string;
   c?: number;
 }
 function loadPrint(): SavedPrint {
@@ -51,7 +51,7 @@ interface State {
   doc: TemplateDoc | null;
   selectedIds: string[];
   templates: TemplateDoc[];
-  printers: PrinterConfig[];
+  targets: PrintTargetConfig[];
   view: { pxPerMm: number; showGrid: boolean; snap: boolean; gridStep: number };
   status: string;
   dirty: boolean;
@@ -61,7 +61,7 @@ interface State {
   // print view (independent of the design doc)
   printTemplateId: string;
   printValues: Record<string, string>;
-  printPrinterId: string;
+  printTargetId: string;
   printCopies: number;
   panels: { left: number; right: number };
 }
@@ -70,7 +70,7 @@ export const state = reactive<State>({
   doc: null,
   selectedIds: [],
   templates: [],
-  printers: [],
+  targets: [],
   view: { pxPerMm: 12, showGrid: true, snap: true, gridStep: 1 },
   status: '',
   dirty: false,
@@ -79,19 +79,19 @@ export const state = reactive<State>({
   history: [],
   printTemplateId: savedPrint.t ?? '',
   printValues: savedPrint.vals ?? {},
-  printPrinterId: savedPrint.p ?? '',
+  printTargetId: savedPrint.target ?? '',
   printCopies: savedPrint.c ?? 1,
   panels: loadPanels(),
 });
 
-// Persist the print view (template + filled values + printer + copies + active tab).
+// Persist the print view (template + filled values + target + copies + active tab).
 watch(
   () =>
     JSON.stringify({
       v: state.activeView,
       t: state.printTemplateId,
       vals: state.printValues,
-      p: state.printPrinterId,
+      target: state.printTargetId,
       c: state.printCopies,
     }),
   (s) => {
@@ -121,13 +121,13 @@ export const printParams = computed(() =>
   printTemplate.value ? collectParams(printTemplate.value) : [],
 );
 
-function ensurePrintPrinter(): void {
-  if (!state.printers.length) {
-    state.printPrinterId = '';
+function ensurePrintTarget(): void {
+  if (!state.targets.length) {
+    state.printTargetId = '';
     return;
   }
-  if (!state.printPrinterId || !state.printers.some((p) => p.id === state.printPrinterId)) {
-    state.printPrinterId = state.printers[0]!.id;
+  if (!state.printTargetId || !state.targets.some((p) => p.id === state.printTargetId)) {
+    state.printTargetId = state.targets[0]!.id;
   }
 }
 
@@ -153,13 +153,13 @@ function setStatus(s: string): void {
 
 export async function loadAll(): Promise<void> {
   try {
-    const [templates, printers] = await Promise.all([
+    const [templates, targets] = await Promise.all([
       api.templates(),
-      api.printers(),
+      api.targets(),
     ]);
     state.templates = templates;
-    state.printers = printers;
-    ensurePrintPrinter();
+    state.targets = targets;
+    ensurePrintTarget();
     if (!state.doc && templates.length) selectTemplate(templates[0]!.id);
     // Keep the restored print template + values if it still exists; else pick the first.
     if (templates.length && (!state.printTemplateId || !templates.some((t) => t.id === state.printTemplateId)))
@@ -409,19 +409,24 @@ export function createTemplate(media: MediaProfile): void {
   state.activeView = 'design';
 }
 
-export async function savePrinter(printer: PrinterConfig): Promise<PrinterConfig> {
-  const saved = await api.savePrinter(printer);
-  const idx = state.printers.findIndex((p) => p.id === saved.id);
-  if (idx >= 0) state.printers[idx] = saved;
-  else state.printers.push(saved);
-  ensurePrintPrinter();
+export async function saveTarget(target: PrintTargetConfig): Promise<PrintTargetConfig> {
+  const saved = await api.saveTarget(target);
+  const idx = state.targets.findIndex((p) => p.id === saved.id);
+  if (idx >= 0) state.targets[idx] = saved;
+  else state.targets.push(saved);
+  ensurePrintTarget();
   return saved;
 }
 
-export async function removePrinter(id: string): Promise<void> {
-  await api.deletePrinter(id);
-  state.printers = state.printers.filter((p) => p.id !== id);
-  ensurePrintPrinter();
+export async function removeTarget(id: string): Promise<void> {
+  await api.deleteTarget(id);
+  state.targets = state.targets.filter((p) => p.id !== id);
+  ensurePrintTarget();
+}
+
+export async function saveTargetOrder(ids: string[]): Promise<void> {
+  state.targets = await api.reorderTargets(ids);
+  ensurePrintTarget();
 }
 
 // ---- param definitions (edited in the design view) ----
@@ -485,10 +490,10 @@ export async function printNow(): Promise<void> {
   const res = await api.print({
     templateId: state.printTemplateId,
     values: state.printValues,
-    printerId: state.printPrinterId || undefined,
+    targetId: state.printTargetId || undefined,
     copies: state.printCopies,
   });
-  setStatus(t('status.printed', { printer: res.printer, detail: res.detail }));
+  setStatus(t('status.printed', { target: res.target, detail: res.detail }));
   await loadHistory();
 }
 
@@ -517,6 +522,6 @@ export function reprintFrom(rec: PrintRecord): void {
   state.printTemplateId = rec.templateId;
   state.printValues = { ...rec.values };
   state.printCopies = rec.copies;
-  if (rec.printerId) state.printPrinterId = rec.printerId;
+  if (rec.targetId) state.printTargetId = rec.targetId;
   state.activeView = 'print';
 }

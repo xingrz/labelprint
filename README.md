@@ -16,10 +16,9 @@ local networks and does not include authentication by default.
 - Server-rendered previews that match the print pipeline.
 - Printer target management from the web UI.
 - Print history with quick reprint.
-- Built-in PDF download and browser print targets.
-- A virtual file target for testing without hardware.
-- Server-side delivery through file output, device paths, CUPS queues, or socket
-  printers.
+- Built-in PDF download, browser print, and TSPL download targets.
+- Server-side delivery through USB device paths, CUPS raw queues, or network
+  sockets.
 
 The bundled server-side hardware backend currently generates TSPL bitmap jobs.
 The print pipeline is protocol-oriented, so other output backends can be added
@@ -50,12 +49,10 @@ http://localhost:5179
 2. Set the label size and feed-positioning mode.
 3. Add elements and placeholders.
 4. Open the Print page and fill the generated form.
-5. Select a target such as PDF download, browser print, virtual file, CUPS, raw
-   device, or network socket.
+5. Select a target such as PDF download, browser print, TSPL download, CUPS, USB,
+   or network socket.
 6. Print. For server-side targets, open the `CLI` dialog to copy an equivalent
    `curl` command.
-
-The virtual printer writes output artifacts to `out/`.
 
 ## Docker Development
 
@@ -92,21 +89,22 @@ http://<host>:5179
 
 Persist these directories:
 
-- `./data:/data` for templates, printer settings, and print history.
-- `./out:/out` for virtual-printer artifacts.
+- `./data:/data` for templates, print targets, and print history.
 
-Create or edit printer targets in the web UI. Browser-managed targets such as
-PDF download and browser print run on the user's device. Server-side targets such
-as file output, raw device path, CUPS queue, and network socket run on the
-LabelPrint host.
+Create or edit print targets in the web UI. Browser-managed targets such as PDF
+download, TSPL download, and browser print run on the user's device.
+Server-side targets such as USB device path, CUPS raw queue, and network socket
+run on the LabelPrint host.
 
 ## REST API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET / POST / PUT / DELETE` | `/api/templates[/:id]` | Manage templates. |
-| `GET / POST / PUT / DELETE` | `/api/printers[/:id]` | Manage printer targets. |
+| `GET / POST / PUT / DELETE` | `/api/targets[/:id]` | Manage print targets. |
+| `PUT` | `/api/targets/order` | Reorder print targets. |
 | `POST` | `/api/preview` | Render a template or document to PNG. |
+| `POST` | `/api/render-job` | Generate a downloadable raw job for download targets. |
 | `POST` | `/api/print` | Fill a template and print with a server-side target. |
 
 Example:
@@ -122,7 +120,7 @@ curl -X POST http://localhost:5179/api/print \
       "date": "2026-06-28",
       "location": "Shelf B2"
     },
-    "printerId": "p_virtual"
+    "targetId": "target_cups"
   }'
 ```
 
@@ -133,7 +131,6 @@ Common environment variables:
 - `LABELPRINT_PORT`: server port, default `5179`.
 - `LABELPRINT_HOST`: server bind host, default `0.0.0.0`.
 - `LABELPRINT_DATA_DIR`: data directory, default `./data`.
-- `LABELPRINT_OUT_DIR`: virtual output directory, default `./out`.
 - `LABELPRINT_DESIGNER_DIST`: built designer path served by the server.
 - `LABELPRINT_DEFAULT_FONT`: preferred server-side font family.
 - `LABELPRINT_FONT_DIRS`: extra font directories for server rendering.

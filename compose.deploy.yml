@@ -14,10 +14,9 @@ services:
     ports:
       - 5179:5179
     volumes:
-      - ./data:/data # templates / printers / history
-      - ./out:/out # virtual-printer artifacts (.tspl + .png)
+      - ./data:/data # templates / print targets / history
     # --- Printing (pick what matches your wiring) ---
-    # A) Network printer (raw 9100): nothing here — add a "network" printer (its IP) in the UI.
+    # A) Network target (raw 9100): nothing here — add a network target in the UI.
     # B) USB on this host, write the device directly:
     # devices:
     #   - '/dev/usb/lp0:/dev/usb/lp0'

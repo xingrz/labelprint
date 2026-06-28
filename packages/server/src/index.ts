@@ -8,7 +8,6 @@ import { registerApi } from './api/routes.js';
 
 async function main(): Promise<void> {
   await fs.mkdir(config.dataDir, { recursive: true });
-  await fs.mkdir(config.outDir, { recursive: true });
   await seedAll();
 
   const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024 });
@@ -40,7 +39,6 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`data directory ${config.dataDir}`);
-  app.log.info(`output directory ${config.outDir}`);
 }
 
 main().catch((e) => {

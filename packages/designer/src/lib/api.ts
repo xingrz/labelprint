@@ -1,4 +1,4 @@
-import type { PrinterConfig, PrintRecord, PrintRequest, TemplateDoc } from '@labelprint/shared';
+import type { PrintDelivery, PrintJobFormat, PrintRecord, PrintRequest, PrintTargetConfig, TemplateDoc } from '@labelprint/shared';
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   // Only set the JSON content-type when there's a body. Sending it on an empty-body
@@ -16,8 +16,9 @@ async function j<T>(url: string, init?: RequestInit): Promise<T> {
 export interface PrintResult {
   ok: boolean;
   detail: string;
-  printer: string;
-  transport: string;
+  target: string;
+  format: PrintJobFormat;
+  delivery: PrintDelivery;
   artifacts: string[];
   job: { bytes: number; widthDots: number; heightDots: number };
   previewPng: string;
@@ -31,13 +32,15 @@ export const api = {
     j<TemplateDoc>(`/api/templates/${doc.id}`, { method: 'PUT', body: JSON.stringify(doc) }),
   deleteTemplate: (id: string) => j<{ deleted: boolean }>(`/api/templates/${id}`, { method: 'DELETE' }),
 
-  printers: () => j<PrinterConfig[]>('/api/printers'),
-  savePrinter: (printer: PrinterConfig) =>
-    j<PrinterConfig>(printer.id ? `/api/printers/${printer.id}` : '/api/printers', {
-      method: printer.id ? 'PUT' : 'POST',
-      body: JSON.stringify(printer),
+  targets: () => j<PrintTargetConfig[]>('/api/targets'),
+  saveTarget: (target: PrintTargetConfig) =>
+    j<PrintTargetConfig>(target.id ? `/api/targets/${target.id}` : '/api/targets', {
+      method: target.id ? 'PUT' : 'POST',
+      body: JSON.stringify(target),
     }),
-  deletePrinter: (id: string) => j<{ deleted: boolean }>(`/api/printers/${id}`, { method: 'DELETE' }),
+  reorderTargets: (ids: string[]) =>
+    j<PrintTargetConfig[]>('/api/targets/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+  deleteTarget: (id: string) => j<{ deleted: boolean }>(`/api/targets/${id}`, { method: 'DELETE' }),
   fonts: () => j<{ families: string[] }>('/api/fonts'),
 
   print: (req: PrintRequest) => j<PrintResult>('/api/print', { method: 'POST', body: JSON.stringify(req) }),

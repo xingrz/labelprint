@@ -1,7 +1,7 @@
 import {
   DEFAULT_FONT,
   type LabelElement,
-  type PrinterConfig,
+  type PrintTargetConfig,
   type TemplateDoc,
   type TextElement,
 } from '@labelprint/shared';
@@ -38,49 +38,35 @@ function line(id: string, x: number, y: number, x2: number, y2: number, strokeMm
   return { id, type: 'line', x, y, x2, y2, strokeMm };
 }
 
-export function seedBrowserPrinters(): PrinterConfig[] {
+export function seedTargets(): PrintTargetConfig[] {
   return [
     {
-      id: 'p_pdf_download',
+      id: 'target_pdf_download',
       name: 'PDF download',
-      transport: 'pdf-download',
-      protocol: 'tspl-bitmap',
-      dpi: 203,
-      density: 10,
-      speed: 4,
-      direction: 1,
+      format: 'pdf',
+      delivery: 'download',
     },
     {
-      id: 'p_browser_print',
+      id: 'target_browser_print',
       name: 'Browser print dialog',
-      transport: 'browser-print',
-      protocol: 'tspl-bitmap',
-      dpi: 203,
-      density: 10,
-      speed: 4,
-      direction: 1,
+      format: 'browser-print-page',
+      delivery: 'browser-dialog',
     },
-  ];
-}
-
-export function seedPrinters(): PrinterConfig[] {
-  return [
-    ...seedBrowserPrinters(),
     {
-      id: 'p_virtual',
-      name: 'Virtual printer (writes to out/)',
-      transport: 'file',
-      protocol: 'tspl-bitmap',
+      id: 'target_tspl_download',
+      name: 'TSPL download',
+      format: 'tspl-bitmap',
+      delivery: 'download',
       dpi: 203,
       density: 10,
       speed: 4,
       direction: 1,
     },
     {
-      id: 'p_cups',
+      id: 'target_cups',
       name: 'CUPS raw queue (tspl_raw)',
-      transport: 'cups',
-      protocol: 'tspl-bitmap',
+      format: 'tspl-bitmap',
+      delivery: 'cups',
       cupsQueue: 'tspl_raw',
       dpi: 203,
       density: 10,
@@ -88,10 +74,10 @@ export function seedPrinters(): PrinterConfig[] {
       direction: 1,
     },
     {
-      id: 'p_device',
+      id: 'target_usb',
       name: 'USB raw device (/dev/usb/lp0)',
-      transport: 'device',
-      protocol: 'tspl-bitmap',
+      format: 'tspl-bitmap',
+      delivery: 'usb',
       device: '/dev/usb/lp0',
       dpi: 203,
       density: 10,
@@ -99,10 +85,10 @@ export function seedPrinters(): PrinterConfig[] {
       direction: 1,
     },
     {
-      id: 'p_network',
+      id: 'target_network',
       name: 'Network socket 9100',
-      transport: 'network',
-      protocol: 'tspl-bitmap',
+      format: 'tspl-bitmap',
+      delivery: 'network',
       host: '192.168.1.50',
       port: 9100,
       dpi: 203,

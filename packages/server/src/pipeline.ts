@@ -1,21 +1,28 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import type { MediaProfile, PrinterConfig, PrintProtocol, PrintRequest, TemplateDoc } from '@labelprint/shared';
+import type { MediaProfile, PrintDelivery, PrintJobFormat, PrintRequest, PrintTargetConfig, TemplateDoc } from '@labelprint/shared';
 import { renderTemplate } from './render/raster.js';
-import { adapterForPrinter } from './protocol/index.js';
+import { adapterForTarget } from './protocol/index.js';
 import { createTransport } from './transport/index.js';
-import { config } from './config.js';
 import type { Repos } from './store/repos.js';
 
 export interface PrintOutcome {
   ok: boolean;
   detail: string;
-  printer: string;
-  protocol: PrintProtocol;
-  transport: string;
+  target: string;
+  format: PrintJobFormat;
+  delivery: PrintDelivery;
   artifacts: string[];
   job: { bytes: number; widthDots: number; heightDots: number };
   /** base64 PNG of the rendered label (for UI confirmation). */
+  previewPng: string;
+}
+
+export interface RenderedJobOutcome {
+  target: string;
+  format: PrintJobFormat;
+  delivery: PrintDelivery;
+  data: Buffer;
+  extension: string;
+  job: { bytes: number; widthDots: number; heightDots: number };
   previewPng: string;
 }
 
@@ -47,19 +54,19 @@ export function effectiveMedia(doc: TemplateDoc, profile?: MediaProfile): MediaP
   };
 }
 
-export function effectivePrinterMedia(doc: TemplateDoc, printer?: PrinterConfig): MediaProfile {
+export function effectiveTargetMedia(doc: TemplateDoc, target?: PrintTargetConfig): MediaProfile {
   return {
     ...DEFAULT_PROFILE,
-    id: '_printer',
-    name: printer?.name ?? DEFAULT_PROFILE.name,
+    id: '_target',
+    name: target?.name ?? DEFAULT_PROFILE.name,
     widthMm: doc.media.widthMm,
     heightMm: doc.media.heightMm,
     type: doc.media.type,
     gapMm: doc.media.gapMm ?? DEFAULT_PROFILE.gapMm,
-    dpi: printer?.dpi ?? DEFAULT_PROFILE.dpi,
-    density: printer?.density ?? DEFAULT_PROFILE.density,
-    speed: printer?.speed ?? DEFAULT_PROFILE.speed,
-    direction: printer?.direction ?? DEFAULT_PROFILE.direction,
+    dpi: target?.dpi ?? DEFAULT_PROFILE.dpi,
+    density: target?.density ?? DEFAULT_PROFILE.density,
+    speed: target?.speed ?? DEFAULT_PROFILE.speed,
+    direction: target?.direction ?? DEFAULT_PROFILE.direction,
   };
 }
 
@@ -72,35 +79,58 @@ export async function renderPreviewPng(
   return { png: r.png, width: r.width, height: r.height };
 }
 
-async function resolvePrinter(repos: Repos, printerId?: string) {
-  if (printerId) {
-    const p = await repos.printers.get(printerId);
-    if (p) return p;
+async function resolveTarget(repos: Repos, targetId?: string) {
+  if (targetId) {
+    const t = await repos.targets.get(targetId);
+    if (t) return t;
   }
-  const all = await repos.printers.all();
+  const all = await repos.targets.all();
   return (
     all[0] ?? {
-      id: 'p_virtual',
-      name: 'Virtual printer',
-      transport: 'file' as const,
-      protocol: 'tspl-bitmap' as const,
+      id: 'target_network',
+      name: 'Network socket 9100',
+      format: 'tspl-bitmap' as const,
+      delivery: 'network' as const,
+      host: '127.0.0.1',
+      port: 9100,
     }
   );
 }
 
 export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOutcome> {
+  const rendered = await renderJob(req, repos);
+  if (rendered.delivery === 'download' || rendered.delivery === 'browser-dialog') {
+    throw new Error('This print target is handled by the web browser. Use the web UI to print with it.');
+  }
+  const target = await resolveTarget(repos, req.targetId);
+  const transport = createTransport(target);
+  const jobName = `${req.templateId}-${stamp()}`;
+  const result = await transport.send(rendered.data, jobName, rendered.extension);
+  return {
+    ok: result.ok,
+    detail: result.detail,
+    target: rendered.target,
+    format: rendered.format,
+    delivery: rendered.delivery,
+    artifacts: result.artifacts ? [...result.artifacts] : [],
+    job: rendered.job,
+    previewPng: rendered.previewPng,
+  };
+}
+
+export async function renderJob(req: PrintRequest, repos: Repos): Promise<RenderedJobOutcome> {
   const doc = await repos.templates.get(req.templateId);
   if (!doc) throw new Error(`Template not found: ${req.templateId}`);
 
-  const printer = await resolvePrinter(repos, req.printerId);
-  if (printer.transport === 'pdf-download' || printer.transport === 'browser-print') {
-    throw new Error('This printer target is handled by the web browser. Use the web UI to print with it.');
+  const target = await resolveTarget(repos, req.targetId);
+  if (target.format !== 'tspl-bitmap') {
+    throw new Error(`Raw job rendering requires tspl-bitmap format, got ${target.format}`);
   }
-  const em = effectivePrinterMedia(doc, printer);
+  const em = effectiveTargetMedia(doc, target);
   const dpi = em.dpi || 203;
 
   const r = await renderTemplate(doc, req.values, dpi);
-  const adapter = adapterForPrinter(printer);
+  const adapter = adapterForTarget(target);
   const job = adapter.build({
     pixels: r.pixels,
     width: r.width,
@@ -111,26 +141,12 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
     copies: req.copies ?? 1,
   });
 
-  const jobName = `${doc.id}-${stamp()}`;
-  const transport = createTransport(printer, config.outDir);
-  const result = await transport.send(job.data, jobName, job.extension);
-
-  const artifacts = result.artifacts ? [...result.artifacts] : [];
-  // For the virtual/file printer, also drop a PNG next to the protocol output.
-  if (transport.kind === 'file') {
-    await fs.mkdir(config.outDir, { recursive: true });
-    const pngPath = path.join(config.outDir, `${jobName}.png`);
-    await fs.writeFile(pngPath, r.png);
-    artifacts.push(pngPath);
-  }
-
   return {
-    ok: result.ok,
-    detail: result.detail,
-    printer: printer.name,
-    protocol: adapter.id,
-    transport: transport.kind,
-    artifacts,
+    target: target.name,
+    format: adapter.id,
+    delivery: target.delivery,
+    data: job.data,
+    extension: job.extension,
     job: { bytes: job.data.length, widthDots: r.width, heightDots: r.height },
     previewPng: r.png.toString('base64'),
   };

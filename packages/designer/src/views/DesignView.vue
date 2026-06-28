@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Grid3x3, Magnet, Plus, Save, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { Grid3x3, Magnet, Maximize2, Plus, Save, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { defaultMediaProfiles } from '@labelprint/shared';
 import IconButton from '../components/IconButton.vue';
 import Toolbar from '../components/Toolbar.vue';
@@ -19,8 +19,22 @@ function onName(e: Event): void {
     state.dirty = true;
   }
 }
+const MIN_ZOOM = 3;
+const MAX_ZOOM = 80;
+const CANVAS_PAD = 96;
+
 function zoom(d: number): void {
-  state.view.pxPerMm = Math.max(3, Math.min(40, state.view.pxPerMm + d));
+  state.view.pxPerMm = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.view.pxPerMm + d));
+}
+
+function fitDesign(): void {
+  if (!state.doc) return;
+  const scroll = document.querySelector<HTMLElement>('.canvas-scroll');
+  if (!scroll) return;
+  const availableW = Math.max(1, scroll.clientWidth - CANVAS_PAD);
+  const availableH = Math.max(1, scroll.clientHeight - CANVAS_PAD);
+  const fit = Math.floor(Math.min(availableW / state.doc.media.widthMm, availableH / state.doc.media.heightMm));
+  state.view.pxPerMm = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
 }
 </script>
 
@@ -41,6 +55,7 @@ function zoom(d: number): void {
         <IconButton :icon="ZoomOut" :label="t('design.zoomOut')" @click="zoom(-2)" />
         <span class="zoom mono">{{ state.view.pxPerMm }}px/mm</span>
         <IconButton :icon="ZoomIn" :label="t('design.zoomIn')" @click="zoom(2)" />
+        <IconButton :icon="Maximize2" :label="t('design.zoomFit')" @click="fitDesign" />
       </div>
       <div class="command-group">
         <IconButton :icon="Grid3x3" :label="t('design.showGrid')" :active="state.view.showGrid" @click="state.view.showGrid = !state.view.showGrid" />

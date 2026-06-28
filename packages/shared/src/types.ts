@@ -98,6 +98,8 @@ export type LabelElement =
 
 export type MediaType = 'continuous' | 'gap' | 'blackmark';
 export type PrintProtocol = 'tspl-bitmap';
+export type PrintJobFormat = 'pdf' | 'browser-print-page' | PrintProtocol;
+export type PrintDelivery = 'download' | 'browser-dialog' | 'cups' | 'usb' | 'network';
 
 /** Snapshot of media geometry embedded in a template (so a template is self-contained). */
 export interface MediaRef {
@@ -155,13 +157,13 @@ export interface MediaProfile {
   direction: 0 | 1;
 }
 
-export type TransportKind = 'file' | 'device' | 'cups' | 'network' | 'pdf-download' | 'browser-print';
-
-export interface PrinterConfig {
+export interface PrintTargetConfig {
   id: string;
   name: string;
-  transport: TransportKind;
-  protocol: PrintProtocol;
+  /** Output format generated for this target. */
+  format: PrintJobFormat;
+  /** Where that output goes. */
+  delivery: PrintDelivery;
   /** Rasterization DPI; defaults to 203. */
   dpi?: number;
   /** Thermal darkness hint. The bundled TSPL adapter maps this to DENSITY. */
@@ -170,11 +172,7 @@ export interface PrinterConfig {
   speed?: number;
   /** Feed direction hint for protocols that expose one. */
   direction?: 0 | 1;
-  /** Legacy field from early builds; ignored by current code. */
-  defaultMediaId?: string;
-  /** file: output directory (defaults to ./out). */
-  outDir?: string;
-  /** device: raw device path, e.g. /dev/usb/lp0 on Linux or /dev/cu.* on macOS. */
+  /** usb: raw USB device path, e.g. /dev/usb/lp0 on Linux. */
   device?: string;
   /** cups: raw queue name (e.g. tspl_raw); optional remote server "host:631". */
   cupsQueue?: string;
@@ -189,9 +187,7 @@ export interface PrintRequest {
   templateId: string;
   values?: Record<string, string>;
   copies?: number;
-  printerId?: string;
-  /** Legacy field from early builds; ignored by current code. */
-  mediaId?: string;
+  targetId?: string;
 }
 
 /** One entry in the print history log. */
@@ -203,10 +199,10 @@ export interface PrintRecord {
   templateName: string;
   values: Record<string, string>;
   copies: number;
-  printer: string;
-  printerId?: string;
-  protocol?: PrintProtocol;
-  transport: string;
+  target: string;
+  targetId?: string;
+  format: PrintJobFormat;
+  delivery: PrintDelivery;
   ok: boolean;
   detail: string;
   widthDots: number;

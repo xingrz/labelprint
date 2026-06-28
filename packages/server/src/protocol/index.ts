@@ -1,4 +1,4 @@
-import type { MediaProfile, PrintProtocol, PrinterConfig } from '@labelprint/shared';
+import type { MediaProfile, PrintProtocol, PrintTargetConfig } from '@labelprint/shared';
 import { buildTsplJob, packMonochrome } from './tspl.js';
 
 export interface RasterInput {
@@ -55,6 +55,6 @@ export function protocolAdapter(id: PrintProtocol): ProtocolAdapter {
   return adapter;
 }
 
-export function adapterForPrinter(printer: PrinterConfig): ProtocolAdapter {
-  return protocolAdapter(normalizeProtocol(printer.protocol));
+export function adapterForTarget(target: PrintTargetConfig): ProtocolAdapter {
+  return protocolAdapter(normalizeProtocol(target.format));
 }

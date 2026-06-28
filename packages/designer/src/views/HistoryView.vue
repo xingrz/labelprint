@@ -21,6 +21,9 @@ function summary(v: Record<string, string>): string {
   const e = Object.entries(v);
   return e.length ? e.map(([k, val]) => `${k}=${val}`).join('  ') : '—';
 }
+function targetName(h: { target?: string; printer?: string }): string {
+  return h.target ?? h.printer ?? '—';
+}
 </script>
 
 <template>
@@ -44,7 +47,7 @@ function summary(v: Record<string, string>): string {
             <th>{{ t('history.template') }}</th>
             <th>{{ t('history.params') }}</th>
             <th class="num">{{ t('history.copies') }}</th>
-            <th>{{ t('history.printer') }}</th>
+            <th>{{ t('history.target') }}</th>
             <th>{{ t('history.status') }}</th>
             <th></th>
           </tr>
@@ -55,7 +58,7 @@ function summary(v: Record<string, string>): string {
             <td>{{ h.templateName }}</td>
             <td class="params mono">{{ summary(h.values) }}</td>
             <td class="num">{{ h.copies }}</td>
-            <td class="nowrap">{{ h.printer }}</td>
+            <td class="nowrap">{{ targetName(h) }}</td>
             <td><span class="badge" :class="h.ok ? 'ok' : 'err'">{{ h.ok ? t('common.success') : t('common.failed') }}</span></td>
             <td class="ops nowrap">
               <button class="link" :title="t('history.reprintTitle')" @click="reprintFrom(h)"><RotateCcw :size="15" /></button>
@@ -74,7 +77,7 @@ function summary(v: Record<string, string>): string {
           <div class="record-params mono">{{ summary(h.values) }}</div>
           <div class="record-meta">
             <span>{{ t('history.copySuffix', { count: h.copies }) }}</span>
-            <span>{{ h.printer }}</span>
+            <span>{{ targetName(h) }}</span>
           </div>
           <div class="record-ops">
             <button :title="t('history.reprintTitle')" @click="reprintFrom(h)"><RotateCcw :size="15" /> {{ t('history.reprint') }}</button>

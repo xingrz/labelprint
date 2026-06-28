@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import type { PrinterConfig } from '@labelprint/shared';
+import type { PrintTargetConfig } from '@labelprint/shared';
 
 export interface TransportResult {
   ok: boolean;
@@ -15,21 +14,9 @@ export interface Transport {
   send(job: Buffer, jobName: string, extension?: string): Promise<TransportResult>;
 }
 
-/** Writes the raw job to ./out/<jobName>.<extension> — the offline / virtual printer. */
-export class FileTransport implements Transport {
-  readonly kind = 'file';
-  constructor(private readonly outDir: string) {}
-  async send(job: Buffer, jobName: string, extension = 'bin'): Promise<TransportResult> {
-    await fs.mkdir(this.outDir, { recursive: true });
-    const p = path.join(this.outDir, `${jobName}.${extension}`);
-    await fs.writeFile(p, job);
-    return { ok: true, detail: `wrote ${p} (${job.length} bytes)`, artifacts: [p] };
-  }
-}
-
 /** Writes raw bytes to a device path: /dev/usb/lp0 (Linux) or /dev/cu.* (macOS). */
-export class DeviceTransport implements Transport {
-  readonly kind = 'device';
+export class UsbTransport implements Transport {
+  readonly kind = 'usb';
   constructor(private readonly device: string) {}
   async send(job: Buffer): Promise<TransportResult> {
     const fh = await fs.open(this.device, 'w');
@@ -97,19 +84,18 @@ export class CupsTransport implements Transport {
   }
 }
 
-export function createTransport(cfg: PrinterConfig, defaultOutDir: string): Transport {
-  switch (cfg.transport) {
-    case 'device':
+export function createTransport(cfg: PrintTargetConfig): Transport {
+  switch (cfg.delivery) {
+    case 'usb':
       if (!cfg.device) throw new Error('device transport requires a device path');
-      return new DeviceTransport(cfg.device);
+      return new UsbTransport(cfg.device);
     case 'network':
       if (!cfg.host) throw new Error('network transport requires host');
       return new NetworkTransport(cfg.host, cfg.port ?? 9100);
     case 'cups':
       if (!cfg.cupsQueue) throw new Error('cups transport requires cupsQueue');
       return new CupsTransport(cfg.cupsQueue, cfg.cupsServer);
-    case 'file':
     default:
-      return new FileTransport(cfg.outDir ?? defaultOutDir);
+      throw new Error(`Unsupported server delivery: ${cfg.delivery}`);
   }
 }

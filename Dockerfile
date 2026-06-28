@@ -43,8 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV NODE_ENV=production \
     LABELPRINT_HOST=0.0.0.0 \
     LABELPRINT_PORT=5179 \
-    LABELPRINT_DATA_DIR=/data \
-    LABELPRINT_OUT_DIR=/out
+    LABELPRINT_DATA_DIR=/data
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
@@ -53,6 +52,6 @@ RUN npm -w @labelprint/server ci --omit=dev && rm -rf /root/.npm /root/.cache
 COPY --link --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --link --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --link --from=builder /app/packages/designer/dist ./packages/designer/dist
-VOLUME ["/data", "/out"]
+VOLUME ["/data"]
 EXPOSE 5179
 CMD ["node", "packages/server/dist/index.js"]
