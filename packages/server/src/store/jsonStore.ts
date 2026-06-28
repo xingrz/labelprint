@@ -4,7 +4,7 @@ import path from 'node:path';
 /**
  * Tiny JSON-file collection store. Zero native deps, Docker-volume friendly,
  * git-inspectable. Writes are serialised and atomic (tmp + rename). Suitable for
- * the small data volumes here (templates, a few media/printers, history). The
+ * the small data volumes here, such as templates and printer settings. The
  * repository surface is intentionally swap-compatible with SQLite later.
  */
 export class JsonStore<T extends { id: string }> {

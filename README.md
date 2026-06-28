@@ -1,61 +1,36 @@
 # LabelPrint
 
-LabelPrint is a parameterized thermal label design and printing system.
+LabelPrint is a self-hosted web app for designing and printing parameterized
+thermal labels.
 
-It provides a millimetre-precise visual designer, a browser print workflow, and a
-REST API for filling templates with values. The same JSON-to-SVG compiler is used
-for both the live preview and the server-side print pipeline, so the generated
-output matches the designer as closely as the selected protocol allows.
+Use it to create millimetre-precise label templates, define placeholders such as
+`{{name}}`, fill those placeholders from a form or REST API, preview the rendered
+label, and send the job to a configured printer target. It is built for trusted
+local networks and does not include authentication by default.
 
-The project is intended for local networks and self-hosted deployments. It can run
-as a local macOS/Linux application during design and as a headless Linux service
-managed through the web UI.
+## What It Does
 
-## Features
+- Visual label template editing with text, lines, boxes, barcodes, QR codes, and
+  images.
+- Print-time parameters with defaults, so one template can produce many labels.
+- Server-rendered previews that match the print pipeline.
+- Printer target management from the web UI.
+- Print history with quick reprint.
+- Built-in PDF download and browser print targets.
+- A virtual file target for testing without hardware.
+- Server-side delivery through file output, device paths, CUPS queues, or socket
+  printers.
 
-- Visual template editor with millimetre coordinates.
-- Text, lines, boxes, barcodes, QR codes, and image elements.
-- Parameter placeholders such as `{{name}}` with defaults and print-time values.
-- WYSIWYG rendering through a shared JSON-to-SVG compiler.
-- Server-side raster preview and print history.
-- Feed modes for continuous media, gap-positioned labels, and black-mark media.
-- Transport adapters for file output, raw devices, CUPS raw queues, and port 9100.
-- Protocol-oriented print pipeline. The current bundled protocol backend emits
-  TSPL bitmap jobs; other protocols or PDF export can be added behind the same
-  template and render pipeline.
-
-## Architecture
-
-```text
-Template JSON + values
-        |
-        v
-JSON-to-SVG compiler     packages/shared
-        |
-        v
-Server rasterizer        packages/server/render
-        |
-        v
-Protocol adapter         packages/server/protocol
-        |
-        v
-Transport adapter        file | device | cups | network
-```
-
-The template model stores geometry in millimetres. Dots are introduced only at
-rasterization time, based on the selected printer's DPI setting.
-
-## Repository Layout
-
-```text
-packages/shared/     Isomorphic model, units, params, and JSON-to-SVG compiler
-packages/server/     Fastify API, rasterization, protocol adapters, transports
-packages/designer/   Vue 3 + Vite web designer
-data/                Local JSON/JSONL store used in development
-out/                 Virtual print artifacts
-```
+The bundled server-side hardware backend currently generates TSPL bitmap jobs.
+The print pipeline is protocol-oriented, so other output backends can be added
+without changing how users design templates.
 
 ## Quick Start
+
+Requirements:
+
+- Node.js 20 or newer
+- npm
 
 ```bash
 npm install
@@ -63,35 +38,29 @@ npm run build
 npm start
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:5179
 ```
 
-## Development
+## Basic Workflow
 
-Run the API and the designer separately:
+1. Create or open a template.
+2. Set the label size and feed-positioning mode.
+3. Add elements and placeholders.
+4. Open the Print page and fill the generated form.
+5. Select a target such as PDF download, browser print, virtual file, CUPS, raw
+   device, or network socket.
+6. Print. For server-side targets, open the `CLI` dialog to copy an equivalent
+   `curl` command.
 
-```bash
-npm run build -w @labelprint/shared
-npm run dev
-npm run dev:designer
-```
-
-The designer runs on `http://localhost:5173` and proxies `/api` to the server on
-`http://localhost:5179`.
-
-Run tests:
-
-```bash
-npm test
-```
+The virtual printer writes output artifacts to `out/`.
 
 ## Docker Development
 
-Docker development is useful when you want the same Linux font and rasterization
-environment as production:
+Docker is useful when you want the same Linux font and rendering environment as
+the production image:
 
 ```bash
 docker compose up --build
@@ -103,13 +72,13 @@ Open:
 http://localhost:5173
 ```
 
-After changing files in `packages/shared`, restart the server container so the
-server process sees the rebuilt shared package.
+The designer runs through Vite and proxies API calls to the server container. If
+you change shared package code, restart the server container.
 
 ## Production Docker
 
-The deployment compose file builds one runtime image. The server serves the built
-designer assets and exposes the API:
+The deployment compose file builds a single runtime image. The server serves the
+web app and API from one port:
 
 ```bash
 docker compose -f compose.deploy.yml up --build -d
@@ -121,14 +90,24 @@ Open:
 http://<host>:5179
 ```
 
+Persist these directories:
+
+- `./data:/data` for templates, printer settings, and print history.
+- `./out:/out` for virtual-printer artifacts.
+
+Create or edit printer targets in the web UI. Browser-managed targets such as
+PDF download and browser print run on the user's device. Server-side targets such
+as file output, raw device path, CUPS queue, and network socket run on the
+LabelPrint host.
+
 ## REST API
 
-| Method | Path | Description |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `GET / POST / PUT / DELETE` | `/api/templates[/:id]` | Template CRUD. `PUT` upserts by id. |
-| `GET / POST / PUT / DELETE` | `/api/printers[/:id]` | Printer configuration CRUD. |
+| `GET / POST / PUT / DELETE` | `/api/templates[/:id]` | Manage templates. |
+| `GET / POST / PUT / DELETE` | `/api/printers[/:id]` | Manage printer targets. |
 | `POST` | `/api/preview` | Render a template or document to PNG. |
-| `POST` | `/api/print` | Fill a template and send it to a printer transport. |
+| `POST` | `/api/print` | Fill a template and print with a server-side target. |
 
 Example:
 
@@ -147,38 +126,38 @@ curl -X POST http://localhost:5179/api/print \
   }'
 ```
 
-The virtual printer writes protocol output and preview PNG artifacts to `out/`,
-which is useful for testing without hardware.
-
 ## Configuration
 
-Environment variables:
+Common environment variables:
 
 - `LABELPRINT_PORT`: server port, default `5179`.
 - `LABELPRINT_HOST`: server bind host, default `0.0.0.0`.
-- `LABELPRINT_DATA_DIR`: JSON/JSONL store directory, default `./data`.
+- `LABELPRINT_DATA_DIR`: data directory, default `./data`.
 - `LABELPRINT_OUT_DIR`: virtual output directory, default `./out`.
 - `LABELPRINT_DESIGNER_DIST`: built designer path served by the server.
 - `LABELPRINT_DEFAULT_FONT`: preferred server-side font family.
-- `LABELPRINT_FONT_DIRS`: extra font directories for server rasterization.
+- `LABELPRINT_FONT_DIRS`: extra font directories for server rendering.
 - `LABELPRINT_API_PROXY`: Vite development proxy target.
 
-## Protocols And Transports
+## Development
 
-LabelPrint separates protocol generation from transport delivery.
+For day-to-day development without Docker:
 
-Protocols decide how a rendered label becomes printable bytes or a downloadable
-artifact. Transports decide where that artifact goes. The bundled implementation
-uses a TSPL bitmap protocol adapter because it is fast and widely supported by
-many thermal label printers. A future PDF adapter can reuse the same template,
-parameter, and raster/preview pipeline.
+```bash
+npm run build -w @labelprint/shared
+npm run dev
+npm run dev:designer
+```
 
-Available transports:
+Run checks:
 
-- `file`: write artifacts to disk for offline testing.
-- `device`: write raw bytes to a device path.
-- `cups`: submit raw jobs to a CUPS queue.
-- `network`: send raw bytes to a socket printer endpoint.
+```bash
+npm run build
+npm test
+```
+
+Implementation notes for coding agents and maintainers live in
+[AGENTS.md](AGENTS.md).
 
 ## License
 

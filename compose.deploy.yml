@@ -14,7 +14,7 @@ services:
     ports:
       - 5179:5179
     volumes:
-      - ./data:/data # templates / media / printers / history (JSON store)
+      - ./data:/data # templates / printers / history
       - ./out:/out # virtual-printer artifacts (.tspl + .png)
     # --- Printing (pick what matches your wiring) ---
     # A) Network printer (raw 9100): nothing here — add a "network" printer (its IP) in the UI.

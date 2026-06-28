@@ -1,154 +1,142 @@
-# AGENTS.md - LabelPrint Maintainer Guide
+# AGENTS.md - LabelPrint Maintainer Notes
 
-This file records project conventions for future coding agents and maintainers.
-Keep it hardware-neutral: public documentation should describe capabilities and
-extension points, not private device notes.
+This file is for coding agents and future maintainers. Keep README focused on
+what the product does, how to use it, and how to deploy it. Put implementation
+guidance here only when it is stable enough to be useful, and prefer pointing at
+the source file that owns the behavior.
 
-## Project Goal
+Avoid hardware-specific claims in public docs unless the user explicitly asks for
+a private hardware note.
+
+## Product Boundary
 
 LabelPrint is a parameterized thermal-label design and printing system:
 
-1. Design templates in a visual, millimetre-precise web editor.
-2. Fill templates with values through the UI or REST API.
-3. Preview and print through a server-side pipeline that can support multiple
-   output protocols.
-4. Run locally for design and as a headless web-managed service on Linux.
+- Users design templates in a millimetre-precise web editor.
+- Users fill templates from the UI or REST API.
+- The server renders previews and server-side print jobs; browser-managed targets
+  can reuse the rendered preview.
+- Deployments are assumed to be trusted local-network services unless auth is
+  added by the application owner.
 
-The project intentionally keeps authentication out of scope for now; it is meant
-for trusted local-network deployments unless an application owner adds auth.
+Do not brand the product around a printer protocol. Protocols are output adapters,
+not the product identity.
 
-## Architecture
+## Code Map
 
-One model drives both preview and printing:
+- `packages/shared/src/types.ts`: shared data model.
+- `packages/shared/src/compiler.ts`: template JSON to SVG; this is the main
+  preview/print source of truth.
+- `packages/shared/src/params.ts`: placeholder extraction and substitution.
+- `packages/shared/src/units.ts`: millimetre, dot, and point helpers.
+- `packages/server/src/api/routes.ts`: REST API.
+- `packages/server/src/pipeline.ts`: template + values + printer -> rendered job
+  -> transport.
+- `packages/server/src/render/`: server-side SVG rasterization and asset helpers.
+- `packages/server/src/protocol/`: output protocol adapters.
+- `packages/server/src/transport/`: delivery adapters.
+- `packages/server/src/store/`: file-backed repositories and seed data.
+- `packages/designer/src/lib/store.ts`: main client-side reactive state.
+- `packages/designer/src/lib/i18n.ts`: English/Chinese UI strings.
+- `packages/designer/src/lib/pdf.ts`: small browser-side raster PDF writer.
+- `packages/designer/src/lib/theme.ts`: light/dark preference handling.
+- `packages/designer/src/views/`: top-level UI workflows.
+- `packages/designer/src/components/`: reusable editor and dialog components.
 
-```text
-Template JSON + values
-        |
-        v
-JSON-to-SVG compiler       packages/shared/compiler.ts
-        |
-        v
-Server rasterizer          packages/server/render
-        |
-        v
-Protocol adapter           packages/server/protocol
-        |
-        v
-Transport adapter          file | device | cups | network
-```
+When behavior changes, update the nearby code comment, test, or component first;
+use this file as an index and policy record rather than a duplicate spec.
 
-The designer and server share the same JSON-to-SVG compiler. This is the main
-WYSIWYG guarantee: avoid adding a separate preview path that can drift from print
-output.
+## Core Invariants
 
-## Repository Layout
+- Template geometry is in millimetres. Dots should appear at rasterization or
+  protocol-generation boundaries, not in template documents.
+- The designer preview and server print path should keep using the shared compiler
+  unless there is an explicit compatibility reason to split them.
+- Template documents own label geometry and feed-positioning mode. Printer records
+  own output settings such as protocol, transport, DPI, density, speed, and
+  direction. Some targets are browser-managed; check `types.ts`, `PrintView.vue`,
+  `pipeline.ts`, printer UI, and README together when changing this split.
+- Paper canvases and label previews should remain white in dark mode.
+- User-visible UI strings should go through `i18n.ts`.
 
-```text
-packages/shared/     Isomorphic core model, unit helpers, params, SVG compiler
-packages/server/     Fastify API, rasterization, protocol adapters, transports
-packages/designer/   Vue 3 + Vite web app
-data/                Development JSON/JSONL store
-out/                 Virtual print artifacts
-```
+## Protocols And Printing
 
-## Protocol And Transport Boundaries
+The current bundled protocol is `tspl-bitmap`; see
+`packages/server/src/protocol/`. Treat it as one adapter behind the print
+pipeline. New protocol work usually needs changes in:
 
-Protocols convert rendered label data into printable bytes or downloadable
-artifacts. Transports deliver those bytes or artifacts.
+- `packages/shared/src/types.ts` for `PrintProtocol`.
+- `packages/server/src/protocol/` for adapter implementation and registration.
+- `packages/server/src/pipeline.ts` if the adapter needs different input or
+  artifact handling.
+- `packages/designer/src/components/PrinterSettingsDialog.vue` if users can
+  select or configure it.
 
-The bundled protocol adapter emits TSPL bitmap jobs. Treat this as one adapter,
-not the product identity. Future adapters such as PDF export or other printer
-command languages should reuse the same template model and render pipeline.
+Browser print and PDF download are currently browser-managed printer targets.
+`pdf-download` uses `packages/designer/src/lib/pdf.ts`; `browser-print` creates a
+print-formatted iframe in `PrintView.vue` and calls `window.print()`. Normal web
+pages cannot reliably choose a printer or silently print, so keep that UX
+explicit.
 
-Current transports:
-
-- `file`: write generated artifacts under `out/`.
-- `device`: write raw bytes to a local device path.
-- `cups`: submit raw jobs to a CUPS queue.
-- `network`: send raw bytes to a socket endpoint, typically port 9100.
-
-## Media Model
-
-Template geometry is always stored in millimetres. Dots only exist at
-rasterization or protocol generation time.
-
-Media feed modes are print-positioning concerns:
-
-- `continuous`: no gap sensor positioning; protocol output uses continuous feed.
-- `gap`: gap-positioned pre-cut labels; protocol output includes the gap size.
-- `blackmark`: black-mark positioned media; protocol output uses the black mark
-  distance.
-
-In the designer, width and height affect layout. Feed mode affects printer
-positioning and should be presented as such.
-
-There is no persisted media-profile collection. Template documents own their
-paper geometry; printer records own output settings such as DPI, density, speed,
-direction, protocol, and transport. If an old `data/media.json` exists in a
-developer checkout, current code ignores it.
+Server-side transports are delivery mechanisms. Keep raw device, CUPS, network
+socket, and file behavior under `packages/server/src/transport/`. The REST print
+pipeline should reject browser-managed targets instead of pretending the server
+can perform those user-agent actions.
 
 ## Runtime Data
 
-- Templates: one JSON file per template under `data/templates/`.
-- Printers: `data/printers.json`, maintained through the print page UI and the
-  `/api/printers` CRUD API.
-- History: append-oriented `data/history.jsonl`. If an old `history.json` array
-  exists and `history.jsonl` does not, the server migrates it once and renames the
-  old file to `history.json.migrated`.
+Current stores are file-backed and live behind repository interfaces in
+`packages/server/src/store/`:
 
-## UI Conventions
+- Templates: JSON files under `data/templates/`.
+- Printers: `data/printers.json`, managed through UI and API.
+- History: append-oriented `data/history.jsonl`.
 
-- The UI is a production tool, not a marketing site.
-- Keep controls dense, predictable, and readable for repeated use.
-- Paper and label previews must remain white, including in dark mode.
-- Use `lucide-vue-next` icons for icon buttons and `reka-ui` only for unstyled
-  accessible primitives such as tooltips and dialogs.
-- Do not put literal `{{ }}` in Vue templates. Build placeholder examples in
+There is no active persisted media catalog. If an old `data/media.json` exists in
+a checkout, current code should ignore it. If runtime data grows beyond the file
+store, keep the repository surface stable while moving the implementation, for
+example to SQLite.
+
+## UI Guidance
+
+- This is a production tool, not a landing page. Favor dense, predictable controls
+  over marketing layout.
+- Use the existing icon and dialog patterns unless there is a clear reason to
+  introduce a new UI dependency.
+- Print-page mobile layout should prioritize preview first, form second.
+- Keep canvas, board, toolbar, and dialog dimensions stable so selection handles
+  and controls do not shift unexpectedly.
+- Do not put literal `{{ }}` in Vue templates; build placeholder examples in
   `<script setup>` constants.
-- Use i18n keys for user-visible text. Avoid hard-coded Chinese or English in
-  Vue templates once a translation key exists.
 
-## Fonts
+## Verification
 
-Server-side preview and printing depend on fonts available to the print host.
-The `/api/fonts` endpoint enumerates host fonts so the designer can offer
-families that the server can actually render. Keep template font stacks ending
-in `sans-serif` so the server-side default mapping has a reliable fallback.
-
-## Build And Test
+Default checks:
 
 ```bash
-npm install
 npm run build
 npm test
 ```
 
-Development:
-
-```bash
-npm run build -w @labelprint/shared
-npm run dev
-npm run dev:designer
-```
-
-Docker development:
+For UI changes, run the app and verify with browser automation or screenshots at
+desktop and mobile widths. For Docker-specific work, use the compose file that
+matches the target path:
 
 ```bash
 docker compose up --build
-```
-
-Production image:
-
-```bash
 docker compose -f compose.deploy.yml up --build -d
 ```
 
-## Editing Rules
+## Documentation Policy
 
-- Keep geometry in millimetres in shared data structures.
-- Do not leak protocol-specific dot coordinates into template documents.
-- Keep protocol code behind `packages/server/src/protocol`.
-- Keep transport code behind `packages/server/src/transport`.
-- Prefer small, coherent commits.
-- Public docs and UI must avoid naming a specific printer model unless the user
-  explicitly asks for a private hardware note.
+- README: product purpose, basic workflow, deployment, API summary, configuration.
+- AGENTS.md: maintainer guidance, architecture pointers, invariants, gotchas.
+- Avoid duplicating implementation details in both files.
+- Avoid absolute statements about hardware, printer behavior, or future protocol
+  support unless they are encoded in tests or the user asks for a private note.
+- When behavior changes, update docs in the same coherent commit.
+
+## Commit Policy
+
+Use small, coherent commits. If an AI assistant creates commits, include a
+co-author trailer naming the actual assistant/model used for the work.
