@@ -105,25 +105,33 @@ run on the LabelPrint host.
 | `GET / POST / PUT / DELETE` | `/api/templates[/:id]` | Manage templates. |
 | `GET / POST / PUT / DELETE` | `/api/targets[/:id]` | Manage print targets. |
 | `PUT` | `/api/targets/order` | Reorder print targets. |
-| `POST` | `/api/preview` | Render a template or document to PNG. |
-| `POST` | `/api/render-job` | Generate a downloadable raw job for download targets. |
-| `POST` | `/api/print` | Fill a template and print with a server-side target. |
+| `POST` | `/api/templates/:templateId/preview` | Render a template PNG preview. |
+| `POST` | `/api/targets/:targetId/templates/:templateId/preview` | Render a target-specific PNG preview. |
+| `POST` | `/api/targets/:targetId/templates/:templateId/render-job?copies=1` | Generate a downloadable raw job. |
+| `POST` | `/api/targets/:targetId/templates/:templateId/print?copies=1` | Print with a server-side target. |
 
-Example:
+The preview, render-job, and print endpoints accept template parameters directly
+as either JSON or `application/x-www-form-urlencoded` fields.
+
+JSON example:
 
 ```bash
-curl -X POST http://localhost:5179/api/print \
+curl -X POST 'http://localhost:5179/api/targets/target_cups/templates/t_supply_40x30/print?copies=1' \
   -H 'Content-Type: application/json' \
   -d '{
-    "templateId": "t_supply_40x30",
-    "values": {
-      "name": "Milk",
-      "qty": "3",
-      "date": "2026-06-28",
-      "location": "Shelf B2"
-    },
-    "targetId": "target_cups"
+    "name": "Milk",
+    "qty": "3",
+    "date": "2026-06-28",
+    "location": "Shelf B2"
   }'
+```
+
+Form example:
+
+```bash
+curl -X POST 'http://localhost:5179/api/targets/target_cups/templates/t_supply_40x30/print?copies=1' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data 'name=Milk&qty=3&date=2026-06-28&location=Shelf+B2'
 ```
 
 ## Configuration

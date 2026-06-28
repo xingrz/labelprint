@@ -76,9 +76,20 @@ pipeline. New protocol work usually needs changes in:
 Browser print, PDF download, and TSPL download are browser-managed print
 targets. PDF download uses `packages/designer/src/lib/pdf.ts`; browser print
 creates a print-formatted iframe in `PrintView.vue` and calls `window.print()`;
-TSPL download uses `/api/render-job` and downloads the returned bytes. Normal web
-pages cannot reliably choose a physical device or silently print, so keep that UX
-explicit.
+TSPL download uses the target/template render-job endpoint and downloads the
+returned bytes. Normal web pages cannot reliably choose a physical device or
+silently print, so keep that UX explicit.
+
+The public print API is resource-oriented:
+
+- `POST /api/templates/:templateId/preview`
+- `POST /api/targets/:targetId/templates/:templateId/preview`
+- `POST /api/targets/:targetId/templates/:templateId/render-job?copies=1`
+- `POST /api/targets/:targetId/templates/:templateId/print?copies=1`
+
+Those endpoints accept template parameters directly as JSON or form fields. The
+pipeline can keep using `PrintRequest` internally, but do not expose that
+structured request shape as the public API.
 
 Server-side delivery mechanisms live under `packages/server/src/transport/`.
 The REST print pipeline should reject browser-managed targets instead of

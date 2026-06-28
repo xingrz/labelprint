@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   collectParams,
   syncParamDefs,
@@ -28,7 +28,73 @@ interface IdParams {
   id: string;
 }
 
+interface TargetTemplateParams {
+  targetId: string;
+  templateId: string;
+  copies?: string;
+}
+
+interface CopiesQuery {
+  copies?: string | number;
+}
+
+function directValues(body: unknown): Record<string, string> {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
+  const values: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (value == null) values[key] = '';
+    else if (typeof value === 'string') values[key] = value;
+    else if (typeof value === 'number' || typeof value === 'boolean') values[key] = String(value);
+    else values[key] = JSON.stringify(value);
+  }
+  return values;
+}
+
+function parseCopies(value: unknown): number {
+  const n = Number(value ?? 1);
+  return Number.isFinite(n) ? Math.max(1, Math.min(999, Math.floor(n))) : 1;
+}
+
+function printRequestFromPath(
+  params: TargetTemplateParams,
+  body: unknown,
+  query?: CopiesQuery,
+): PrintRequest {
+  return {
+    targetId: params.targetId,
+    templateId: params.templateId,
+    values: directValues(body),
+    copies: parseCopies(params.copies ?? query?.copies),
+  };
+}
+
+async function addPrintHistory(req: PrintRequest, outcome: Awaited<ReturnType<typeof runPrint>>): Promise<void> {
+  const tmpl = await repos.templates.get(req.templateId);
+  await addHistory({
+    id: `h_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`,
+    ts: nowIso(),
+    templateId: req.templateId,
+    templateName: tmpl?.name ?? req.templateId,
+    values: req.values ?? {},
+    copies: req.copies ?? 1,
+    target: outcome.target,
+    targetId: req.targetId,
+    format: outcome.format,
+    delivery: outcome.delivery,
+    ok: outcome.ok,
+    detail: outcome.detail,
+    widthDots: outcome.job.widthDots,
+    heightDots: outcome.job.heightDots,
+  });
+}
+
 export async function registerApi(app: FastifyInstance): Promise<void> {
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    const values: Record<string, string> = {};
+    for (const [key, value] of new URLSearchParams(String(body))) values[key] = value;
+    done(null, values);
+  });
+
   app.get('/api/health', async () => ({ ok: true, service: 'labelprint', version: '0.1.0' }));
 
   // Font families the print host can render with (for the designer's font picker).
@@ -113,58 +179,46 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
   }));
 
   // ---- preview: high-fidelity server raster (resvg) ----
-  app.post<{ Body: { doc?: TemplateDoc; templateId?: string; values?: Record<string, string> } }>(
-    '/api/preview',
+  app.post<{ Params: { templateId: string }; Body: unknown }>(
+    '/api/templates/:templateId/preview',
     async (req, reply) => {
-      let doc = req.body.doc;
-      if (!doc && req.body.templateId) doc = await repos.templates.get(req.body.templateId);
-      if (!doc) return reply.code(400).send({ error: 'doc or templateId is required' });
-      const { png } = await renderPreviewPng(doc, req.body.values);
+      const doc = await repos.templates.get(req.params.templateId);
+      if (!doc) return reply.code(404).send({ error: 'Template not found' });
+      const { png } = await renderPreviewPng(doc, directValues(req.body));
       return reply.header('Content-Type', 'image/png').send(png);
     },
   );
 
-  app.post<{ Body: PrintRequest }>('/api/render-job', async (req, reply) => {
-    try {
-      const outcome = await renderJob(req.body, repos);
-      if (outcome.delivery !== 'download') {
-        return reply.code(400).send({ ok: false, error: 'render-job is only available for download targets' });
-      }
-      return reply
-        .header('Content-Type', 'application/octet-stream')
-        .header('Content-Disposition', `attachment; filename="${req.body.templateId}.${outcome.extension}"`)
-        .send(outcome.data);
-    } catch (e: unknown) {
-      return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
-    }
-  });
+  app.post<{ Params: TargetTemplateParams; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/preview',
+    async (req, reply) => {
+      const doc = await repos.templates.get(req.params.templateId);
+      if (!doc) return reply.code(404).send({ error: 'Template not found' });
+      const target = await repos.targets.get(req.params.targetId);
+      if (!target) return reply.code(404).send({ error: 'Target not found' });
+      const { png } = await renderPreviewPng(doc, directValues(req.body), target.dpi ?? 203);
+      return reply.header('Content-Type', 'image/png').send(png);
+    },
+  );
+
+  app.post<{ Params: TargetTemplateParams; Querystring: CopiesQuery; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/render-job',
+    async (req, reply) => sendRenderedJob(printRequestFromPath(req.params, req.body, req.query), reply),
+  );
+  app.post<{ Params: TargetTemplateParams; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/render-job/:copies',
+    async (req, reply) => sendRenderedJob(printRequestFromPath(req.params, req.body), reply),
+  );
 
   // ---- print ----
-  app.post<{ Body: PrintRequest }>('/api/print', async (req, reply) => {
-    try {
-      const outcome = await runPrint(req.body, repos);
-      const tmpl = await repos.templates.get(req.body.templateId);
-      await addHistory({
-        id: `h_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`,
-        ts: nowIso(),
-        templateId: req.body.templateId,
-        templateName: tmpl?.name ?? req.body.templateId,
-        values: req.body.values ?? {},
-        copies: req.body.copies ?? 1,
-        target: outcome.target,
-        targetId: req.body.targetId,
-        format: outcome.format,
-        delivery: outcome.delivery,
-        ok: outcome.ok,
-        detail: outcome.detail,
-        widthDots: outcome.job.widthDots,
-        heightDots: outcome.job.heightDots,
-      });
-      return outcome;
-    } catch (e: unknown) {
-      return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
-    }
-  });
+  app.post<{ Params: TargetTemplateParams; Querystring: CopiesQuery; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/print',
+    async (req, reply) => sendPrint(printRequestFromPath(req.params, req.body, req.query), reply),
+  );
+  app.post<{ Params: TargetTemplateParams; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/print/:copies',
+    async (req, reply) => sendPrint(printRequestFromPath(req.params, req.body), reply),
+  );
 
   // ---- print history ----
   app.get('/api/history', async () => {
@@ -178,4 +232,29 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     await repos.history.clear();
     return { ok: true };
   });
+}
+
+async function sendRenderedJob(req: PrintRequest, reply: FastifyReply) {
+  try {
+    const outcome = await renderJob(req, repos);
+    if (outcome.delivery !== 'download') {
+      return reply.code(400).send({ ok: false, error: 'render-job is only available for download targets' });
+    }
+    return reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Disposition', `attachment; filename="${req.templateId}.${outcome.extension}"`)
+      .send(outcome.data);
+  } catch (e: unknown) {
+    return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+async function sendPrint(req: PrintRequest, reply: FastifyReply) {
+  try {
+    const outcome = await runPrint(req, repos);
+    await addPrintHistory(req, outcome);
+    return outcome;
+  } catch (e: unknown) {
+    return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
+  }
 }

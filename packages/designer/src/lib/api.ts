@@ -1,4 +1,4 @@
-import type { PrintDelivery, PrintJobFormat, PrintRecord, PrintRequest, PrintTargetConfig, TemplateDoc } from '@labelprint/shared';
+import type { PrintDelivery, PrintJobFormat, PrintRecord, PrintTargetConfig, TemplateDoc } from '@labelprint/shared';
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   // Only set the JSON content-type when there's a body. Sending it on an empty-body
@@ -43,7 +43,11 @@ export const api = {
   deleteTarget: (id: string) => j<{ deleted: boolean }>(`/api/targets/${id}`, { method: 'DELETE' }),
   fonts: () => j<{ families: string[] }>('/api/fonts'),
 
-  print: (req: PrintRequest) => j<PrintResult>('/api/print', { method: 'POST', body: JSON.stringify(req) }),
+  printTarget: (targetId: string, templateId: string, values: Record<string, string>, copies = 1) =>
+    j<PrintResult>(`/api/targets/${targetId}/templates/${templateId}/print?copies=${encodeURIComponent(copies)}`, {
+      method: 'POST',
+      body: JSON.stringify(values),
+    }),
 
   history: () => j<PrintRecord[]>('/api/history'),
   deleteHistory: (id: string) => j<{ deleted: boolean }>(`/api/history/${id}`, { method: 'DELETE' }),

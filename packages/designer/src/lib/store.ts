@@ -487,12 +487,8 @@ export function selectPrintTemplate(id: string): void {
 
 export async function printNow(): Promise<void> {
   if (!state.printTemplateId) throw new Error(t('error.noTemplateSelected'));
-  const res = await api.print({
-    templateId: state.printTemplateId,
-    values: state.printValues,
-    targetId: state.printTargetId || undefined,
-    copies: state.printCopies,
-  });
+  if (!state.printTargetId) throw new Error(t('error.noTargetSelected'));
+  const res = await api.printTarget(state.printTargetId, state.printTemplateId, state.printValues, state.printCopies);
   setStatus(t('status.printed', { target: res.target, detail: res.detail }));
   await loadHistory();
 }

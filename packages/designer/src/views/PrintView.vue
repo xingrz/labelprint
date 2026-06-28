@@ -74,16 +74,12 @@ const curlOrigin = computed(() => {
   return selectedCurlOrigin.value || currentOrigin();
 });
 const curlCommand = computed(() => {
-  const body = {
-    templateId: state.printTemplateId,
-    values: state.printValues,
-    targetId: state.printTargetId || undefined,
-    copies: state.printCopies,
-  };
-  const json = JSON.stringify(body, null, 2);
+  const target = selectedTarget.value;
+  const templateId = state.printTemplateId;
+  const json = JSON.stringify(state.printValues, null, 2);
   return [
     'curl -X POST',
-    shellQuote(`${curlOrigin.value}/api/print`),
+    shellQuote(`${curlOrigin.value}${printPath(target?.id ?? '', templateId, state.printCopies)}`),
     "-H 'Content-Type: application/json'",
     `--data ${shellQuote(json)}`,
   ].join(' \\\n  ');
@@ -115,8 +111,18 @@ function normalizeOrigin(input: string): string {
   const protocol = typeof window === 'undefined' ? 'http:' : window.location.protocol;
   return `${protocol}//${trimmed}`;
 }
+function printPath(targetId: string, templateId: string, copies: number): string {
+  return `/api/targets/${encodeURIComponent(targetId)}/templates/${encodeURIComponent(templateId)}/print?copies=${encodeURIComponent(copies || 1)}`;
+}
+function previewPath(targetId: string | undefined, templateId: string): string {
+  if (!targetId) return `/api/templates/${encodeURIComponent(templateId)}/preview`;
+  return `/api/targets/${encodeURIComponent(targetId)}/templates/${encodeURIComponent(templateId)}/preview`;
+}
+function renderJobPath(targetId: string, templateId: string, copies: number): string {
+  return `/api/targets/${encodeURIComponent(targetId)}/templates/${encodeURIComponent(templateId)}/render-job?copies=${encodeURIComponent(copies || 1)}`;
+}
 function currentPreviewKey(): string {
-  return `${state.printTemplateId}|${JSON.stringify(state.printValues)}`;
+  return `${selectedTarget.value?.id ?? ''}|${state.printTemplateId}|${JSON.stringify(state.printValues)}`;
 }
 function setPreviewBlob(blob: Blob): void {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
@@ -142,10 +148,10 @@ async function copyCurl(): Promise<void> {
 
 async function requestPreviewBlob(): Promise<Blob> {
   if (!state.printTemplateId) throw new Error(t('error.noTemplateSelected'));
-  const res = await fetch('/api/preview', {
+  const res = await fetch(previewPath(selectedTarget.value?.id, state.printTemplateId), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ templateId: state.printTemplateId, values: state.printValues }),
+    body: JSON.stringify(state.printValues),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.blob();
@@ -238,15 +244,10 @@ async function downloadPdf(target: PrintTargetConfig): Promise<void> {
 async function downloadTspl(target: PrintTargetConfig): Promise<void> {
   const tmpl = printTemplate.value;
   if (!tmpl) throw new Error(t('error.noTemplateSelected'));
-  const res = await fetch('/api/render-job', {
+  const res = await fetch(renderJobPath(target.id, state.printTemplateId, state.printCopies), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      templateId: state.printTemplateId,
-      values: state.printValues,
-      targetId: target.id,
-      copies: state.printCopies,
-    }),
+    body: JSON.stringify(state.printValues),
   });
   if (!res.ok) throw new Error(await res.text());
   downloadBlob(await res.blob(), `${pdfFileName(tmpl.name).replace(/\.pdf$/i, '')}.tspl`);
@@ -406,7 +407,7 @@ onMounted(() => {
           <button
             type="button"
             class="ghost subtle"
-            :disabled="!state.printTemplateId || selectedTargetIsClient"
+            :disabled="!state.printTemplateId || !selectedTarget || selectedTargetIsClient"
             :title="selectedTargetIsClient ? t('print.cliClientUnavailable') : ''"
             @click="curlOpen = true"
           >
