@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { MediaProfile, PrintProtocol, PrintRequest, TemplateDoc } from '@labelprint/shared';
+import type { MediaProfile, PrinterConfig, PrintProtocol, PrintRequest, TemplateDoc } from '@labelprint/shared';
 import { renderTemplate } from './render/raster.js';
 import { adapterForPrinter } from './protocol/index.js';
 import { createTransport } from './transport/index.js';
@@ -47,6 +47,22 @@ export function effectiveMedia(doc: TemplateDoc, profile?: MediaProfile): MediaP
   };
 }
 
+export function effectivePrinterMedia(doc: TemplateDoc, printer?: PrinterConfig): MediaProfile {
+  return {
+    ...DEFAULT_PROFILE,
+    id: '_printer',
+    name: printer?.name ?? DEFAULT_PROFILE.name,
+    widthMm: doc.media.widthMm,
+    heightMm: doc.media.heightMm,
+    type: doc.media.type,
+    gapMm: doc.media.gapMm ?? DEFAULT_PROFILE.gapMm,
+    dpi: printer?.dpi ?? DEFAULT_PROFILE.dpi,
+    density: printer?.density ?? DEFAULT_PROFILE.density,
+    speed: printer?.speed ?? DEFAULT_PROFILE.speed,
+    direction: printer?.direction ?? DEFAULT_PROFILE.direction,
+  };
+}
+
 export async function renderPreviewPng(
   doc: TemplateDoc,
   values: Record<string, string> | undefined,
@@ -77,12 +93,7 @@ export async function runPrint(req: PrintRequest, repos: Repos): Promise<PrintOu
   if (!doc) throw new Error(`Template not found: ${req.templateId}`);
 
   const printer = await resolvePrinter(repos, req.printerId);
-  const profile = req.mediaId
-    ? await repos.media.get(req.mediaId)
-    : printer.defaultMediaId
-      ? await repos.media.get(printer.defaultMediaId)
-      : undefined;
-  const em = effectiveMedia(doc, profile);
+  const em = effectivePrinterMedia(doc, printer);
   const dpi = em.dpi || 203;
 
   const r = await renderTemplate(doc, req.values, dpi);

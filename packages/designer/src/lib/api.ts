@@ -1,4 +1,4 @@
-import type { MediaProfile, PrinterConfig, PrintRecord, PrintRequest, TemplateDoc } from '@labelprint/shared';
+import type { PrinterConfig, PrintRecord, PrintRequest, TemplateDoc } from '@labelprint/shared';
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   // Only set the JSON content-type when there's a body. Sending it on an empty-body
@@ -31,8 +31,13 @@ export const api = {
     j<TemplateDoc>(`/api/templates/${doc.id}`, { method: 'PUT', body: JSON.stringify(doc) }),
   deleteTemplate: (id: string) => j<{ deleted: boolean }>(`/api/templates/${id}`, { method: 'DELETE' }),
 
-  media: () => j<MediaProfile[]>('/api/media'),
   printers: () => j<PrinterConfig[]>('/api/printers'),
+  savePrinter: (printer: PrinterConfig) =>
+    j<PrinterConfig>(printer.id ? `/api/printers/${printer.id}` : '/api/printers', {
+      method: printer.id ? 'PUT' : 'POST',
+      body: JSON.stringify(printer),
+    }),
+  deletePrinter: (id: string) => j<{ deleted: boolean }>(`/api/printers/${id}`, { method: 'DELETE' }),
   fonts: () => j<{ families: string[] }>('/api/fonts'),
 
   print: (req: PrintRequest) => j<PrintResult>('/api/print', { method: 'POST', body: JSON.stringify(req) }),

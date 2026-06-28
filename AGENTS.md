@@ -47,7 +47,7 @@ output.
 packages/shared/     Isomorphic core model, unit helpers, params, SVG compiler
 packages/server/     Fastify API, rasterization, protocol adapters, transports
 packages/designer/   Vue 3 + Vite web app
-data/                Development JSON store
+data/                Development JSON/JSONL store
 out/                 Virtual print artifacts
 ```
 
@@ -81,6 +81,20 @@ Media feed modes are print-positioning concerns:
 
 In the designer, width and height affect layout. Feed mode affects printer
 positioning and should be presented as such.
+
+There is no persisted media-profile collection. Template documents own their
+paper geometry; printer records own output settings such as DPI, density, speed,
+direction, protocol, and transport. If an old `data/media.json` exists in a
+developer checkout, current code ignores it.
+
+## Runtime Data
+
+- Templates: one JSON file per template under `data/templates/`.
+- Printers: `data/printers.json`, maintained through the print page UI and the
+  `/api/printers` CRUD API.
+- History: append-oriented `data/history.jsonl`. If an old `history.json` array
+  exists and `history.jsonl` does not, the server migrates it once and renames the
+  old file to `history.json.migrated`.
 
 ## UI Conventions
 

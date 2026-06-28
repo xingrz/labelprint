@@ -1,8 +1,6 @@
 import {
   DEFAULT_FONT,
-  defaultMediaProfiles,
   type LabelElement,
-  type MediaProfile,
   type PrinterConfig,
   type TemplateDoc,
   type TextElement,
@@ -40,10 +38,6 @@ function line(id: string, x: number, y: number, x2: number, y2: number, strokeMm
   return { id, type: 'line', x, y, x2, y2, strokeMm };
 }
 
-export function seedMedia(): MediaProfile[] {
-  return defaultMediaProfiles();
-}
-
 export function seedPrinters(): PrinterConfig[] {
   return [
     {
@@ -51,7 +45,10 @@ export function seedPrinters(): PrinterConfig[] {
       name: 'Virtual printer (writes to out/)',
       transport: 'file',
       protocol: 'tspl-bitmap',
-      defaultMediaId: 'm_40x30_gap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
     },
     {
       id: 'p_cups',
@@ -59,7 +56,10 @@ export function seedPrinters(): PrinterConfig[] {
       transport: 'cups',
       protocol: 'tspl-bitmap',
       cupsQueue: 'tspl_raw',
-      defaultMediaId: 'm_40x30_gap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
     },
     {
       id: 'p_device',
@@ -67,7 +67,10 @@ export function seedPrinters(): PrinterConfig[] {
       transport: 'device',
       protocol: 'tspl-bitmap',
       device: '/dev/usb/lp0',
-      defaultMediaId: 'm_40x30_gap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
     },
     {
       id: 'p_network',
@@ -76,7 +79,10 @@ export function seedPrinters(): PrinterConfig[] {
       protocol: 'tspl-bitmap',
       host: '192.168.1.50',
       port: 9100,
-      defaultMediaId: 'm_40x30_gap',
+      dpi: 203,
+      density: 10,
+      speed: 4,
+      direction: 1,
     },
   ];
 }
@@ -137,10 +143,10 @@ export function seedTemplates(): TemplateDoc[] {
     media: { widthMm: 80, heightMm: 40, type: 'gap', gapMm: 2 },
     background: '#ffffff',
     elements: [
-      text('d_name', 3, 3, 50, 7, '{{name}}', 12, { fontWeight: 'bold' }),
-      text('d_sku', 3, 11, 50, 5, 'SKU: {{sku}}', 9),
-      { id: 'd_bc', type: 'barcode', x: 3, y: 18, w: 50, h: 14, symbology: 'code128', value: '{{barcode}}', showText: true },
-      { id: 'd_qr', type: 'qrcode', x: 60, y: 6, size: 26, value: '{{qr}}', ecc: 'M' },
+      text('d_name', 3, 3, 52, 7, '{{name}}', 12, { fontWeight: 'bold' }),
+      text('d_sku', 3, 11, 52, 5, 'SKU: {{sku}}', 9),
+      { id: 'd_bc', type: 'barcode', x: 3, y: 18, w: 48, h: 14, symbology: 'code128', value: '{{barcode}}', showText: true },
+      { id: 'd_qr', type: 'qrcode', x: 58, y: 7, size: 20, value: '{{qr}}', ecc: 'M' },
     ],
     params: [
       { key: 'name', label: 'Item', default: 'Sample product' },

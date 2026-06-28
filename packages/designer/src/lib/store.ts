@@ -51,7 +51,6 @@ interface State {
   doc: TemplateDoc | null;
   selectedIds: string[];
   templates: TemplateDoc[];
-  mediaList: MediaProfile[];
   printers: PrinterConfig[];
   view: { pxPerMm: number; showGrid: boolean; snap: boolean; gridStep: number };
   status: string;
@@ -71,7 +70,6 @@ export const state = reactive<State>({
   doc: null,
   selectedIds: [],
   templates: [],
-  mediaList: [],
   printers: [],
   view: { pxPerMm: 12, showGrid: true, snap: true, gridStep: 1 },
   status: '',
@@ -145,13 +143,11 @@ function setStatus(s: string): void {
 
 export async function loadAll(): Promise<void> {
   try {
-    const [templates, mediaList, printers] = await Promise.all([
+    const [templates, printers] = await Promise.all([
       api.templates(),
-      api.media(),
       api.printers(),
     ]);
     state.templates = templates;
-    state.mediaList = mediaList;
     state.printers = printers;
     if (!state.doc && templates.length) selectTemplate(templates[0]!.id);
     // Keep the restored print template + values if it still exists; else pick the first.
@@ -400,6 +396,21 @@ export function openTemplate(id: string): void {
 export function createTemplate(media: MediaProfile): void {
   newTemplate(media);
   state.activeView = 'design';
+}
+
+export async function savePrinter(printer: PrinterConfig): Promise<PrinterConfig> {
+  const saved = await api.savePrinter(printer);
+  const idx = state.printers.findIndex((p) => p.id === saved.id);
+  if (idx >= 0) state.printers[idx] = saved;
+  else state.printers.push(saved);
+  if (!state.printPrinterId) state.printPrinterId = saved.id;
+  return saved;
+}
+
+export async function removePrinter(id: string): Promise<void> {
+  await api.deletePrinter(id);
+  state.printers = state.printers.filter((p) => p.id !== id);
+  if (state.printPrinterId === id) state.printPrinterId = state.printers[0]?.id ?? '';
 }
 
 // ---- param definitions (edited in the design view) ----

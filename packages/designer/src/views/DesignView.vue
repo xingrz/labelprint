@@ -11,8 +11,7 @@ import { t } from '../lib/i18n';
 import { newTemplate, save, state } from '../lib/store';
 
 function onNew(): void {
-  const m = state.mediaList[0] ?? defaultMediaProfiles()[0]!;
-  newTemplate(m);
+  newTemplate(defaultMediaProfiles()[0]!);
 }
 function onName(e: Event): void {
   if (state.doc) {

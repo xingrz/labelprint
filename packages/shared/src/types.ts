@@ -162,6 +162,15 @@ export interface PrinterConfig {
   name: string;
   transport: TransportKind;
   protocol: PrintProtocol;
+  /** Rasterization DPI; defaults to 203. */
+  dpi?: number;
+  /** Thermal darkness hint. The bundled TSPL adapter maps this to DENSITY. */
+  density?: number;
+  /** Thermal speed hint. The bundled TSPL adapter maps this to SPEED. */
+  speed?: number;
+  /** Feed direction hint for protocols that expose one. */
+  direction?: 0 | 1;
+  /** Legacy field from early builds; ignored by current code. */
   defaultMediaId?: string;
   /** file: output directory (defaults to ./out). */
   outDir?: string;
@@ -181,6 +190,7 @@ export interface PrintRequest {
   values?: Record<string, string>;
   copies?: number;
   printerId?: string;
+  /** Legacy field from early builds; ignored by current code. */
   mediaId?: string;
 }
 

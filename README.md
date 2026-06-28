@@ -43,7 +43,7 @@ Transport adapter        file | device | cups | network
 ```
 
 The template model stores geometry in millimetres. Dots are introduced only at
-rasterization time, based on the effective media profile DPI.
+rasterization time, based on the selected printer's DPI setting.
 
 ## Repository Layout
 
@@ -51,7 +51,7 @@ rasterization time, based on the effective media profile DPI.
 packages/shared/     Isomorphic model, units, params, and JSON-to-SVG compiler
 packages/server/     Fastify API, rasterization, protocol adapters, transports
 packages/designer/   Vue 3 + Vite web designer
-data/                Local JSON store used in development
+data/                Local JSON/JSONL store used in development
 out/                 Virtual print artifacts
 ```
 
@@ -126,7 +126,6 @@ http://<host>:5179
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET / POST / PUT / DELETE` | `/api/templates[/:id]` | Template CRUD. `PUT` upserts by id. |
-| `GET / POST / PUT / DELETE` | `/api/media[/:id]` | Media profile CRUD. |
 | `GET / POST / PUT / DELETE` | `/api/printers[/:id]` | Printer configuration CRUD. |
 | `POST` | `/api/preview` | Render a template or document to PNG. |
 | `POST` | `/api/print` | Fill a template and send it to a printer transport. |
@@ -157,7 +156,7 @@ Environment variables:
 
 - `LABELPRINT_PORT`: server port, default `5179`.
 - `LABELPRINT_HOST`: server bind host, default `0.0.0.0`.
-- `LABELPRINT_DATA_DIR`: JSON store directory, default `./data`.
+- `LABELPRINT_DATA_DIR`: JSON/JSONL store directory, default `./data`.
 - `LABELPRINT_OUT_DIR`: virtual output directory, default `./out`.
 - `LABELPRINT_DESIGNER_DIST`: built designer path served by the server.
 - `LABELPRINT_DEFAULT_FONT`: preferred server-side font family.

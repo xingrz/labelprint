@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import {
   collectParams,
   syncParamDefs,
-  type MediaProfile,
   type PrinterConfig,
   type PrintRequest,
   type TemplateDoc,
@@ -13,6 +12,18 @@ import { listFontFamilies } from '../fonts.js';
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function normalizePrinter(p: PrinterConfig): PrinterConfig {
+  const protocol = p.protocol === 'tspl-bitmap' ? p.protocol : 'tspl-bitmap';
+  return {
+    ...p,
+    protocol,
+    dpi: p.dpi ?? 203,
+    density: p.density ?? 10,
+    speed: p.speed ?? 4,
+    direction: p.direction ?? 1,
+  };
 }
 
 interface IdParams {
@@ -73,27 +84,14 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     return { params: t.params, used: collectParams(t) };
   });
 
-  // ---- media profiles ----
-  app.get('/api/media', async () => repos.media.all());
-  app.post<{ Body: MediaProfile }>('/api/media', async (req) => {
-    const m = { ...req.body, id: req.body.id || `m_${Date.now().toString(36)}` };
-    return repos.media.put(m);
-  });
-  app.put<{ Params: IdParams; Body: MediaProfile }>('/api/media/:id', async (req) =>
-    repos.media.put({ ...req.body, id: req.params.id }),
-  );
-  app.delete<{ Params: IdParams }>('/api/media/:id', async (req) => ({
-    deleted: await repos.media.delete(req.params.id),
-  }));
-
   // ---- printers ----
-  app.get('/api/printers', async () => repos.printers.all());
+  app.get('/api/printers', async () => (await repos.printers.all()).map(normalizePrinter));
   app.post<{ Body: PrinterConfig }>('/api/printers', async (req) => {
-    const p = { ...req.body, id: req.body.id || `p_${Date.now().toString(36)}` };
+    const p = normalizePrinter({ ...req.body, id: req.body.id || `p_${Date.now().toString(36)}` });
     return repos.printers.put(p);
   });
   app.put<{ Params: IdParams; Body: PrinterConfig }>('/api/printers/:id', async (req) =>
-    repos.printers.put({ ...req.body, id: req.params.id }),
+    repos.printers.put(normalizePrinter({ ...req.body, id: req.params.id })),
   );
   app.delete<{ Params: IdParams }>('/api/printers/:id', async (req) => ({
     deleted: await repos.printers.delete(req.params.id),

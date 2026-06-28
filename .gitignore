@@ -5,6 +5,7 @@ dist/
 out/*
 !out/.gitkeep
 data/*.json
+data/*.jsonl
 data/*.json.migrated
 data/*.db
 data/templates/

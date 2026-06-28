@@ -1,7 +1,11 @@
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { MediaProfile, TemplateDoc } from '@labelprint/shared';
 import { buildPrelude, buildTsplJob, packMonochrome } from './protocol/tspl.js';
 import { effectiveMedia } from './pipeline.js';
+import { JsonlStore } from './store/jsonlStore.js';
 
 const media: MediaProfile = {
   id: 'm',
@@ -76,5 +80,24 @@ describe('effectiveMedia', () => {
     expect(em.density).toBe(8);
     expect(em.speed).toBe(5);
     expect(em.direction).toBe(0);
+  });
+});
+
+describe('JsonlStore', () => {
+  it('migrates a legacy JSON array and appends future records as JSONL', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'labelprint-history-'));
+    const legacy = path.join(dir, 'history.json');
+    const jsonl = path.join(dir, 'history.jsonl');
+    await writeFile(legacy, JSON.stringify([{ id: 'h1', value: 'old' }]), 'utf8');
+
+    const store = new JsonlStore<{ id: string; value: string }>(jsonl, legacy);
+    expect(await store.all()).toEqual([{ id: 'h1', value: 'old' }]);
+    await store.add({ id: 'h2', value: 'new' });
+
+    expect(await store.all()).toEqual([
+      { id: 'h1', value: 'old' },
+      { id: 'h2', value: 'new' },
+    ]);
+    expect(await readFile(jsonl, 'utf8')).toBe('{"id":"h1","value":"old"}\n{"id":"h2","value":"new"}\n');
   });
 });

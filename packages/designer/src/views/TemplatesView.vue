@@ -20,7 +20,7 @@ function mediaLabel(t: TemplateDoc): string {
   return `${m.widthMm}×${m.heightMm} mm · ${mediaTypeLabel(m.type)}`;
 }
 function onNew(): void {
-  createTemplate(state.mediaList[0] ?? defaultMediaProfiles()[0]!);
+  createTemplate(defaultMediaProfiles()[0]!);
 }
 function onPrint(t: TemplateDoc): void {
   selectPrintTemplate(t.id);
