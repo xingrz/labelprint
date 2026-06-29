@@ -38,6 +38,18 @@ describe('packMonochrome', () => {
     const mono = packMonochrome(px, 4, 1);
     expect(mono.data[0]).toBe(0xff);
   });
+
+  it('uses threshold and dot offsets during packing', () => {
+    const grey = Buffer.alloc(8 * 4, 255);
+    grey[0] = 150;
+    grey[1] = 150;
+    grey[2] = 150;
+    grey[3] = 255;
+
+    expect(packMonochrome(grey, 8, 1, 128).data[0]).toBe(0xff);
+    expect(packMonochrome(grey, 8, 1, 176).data[0]).toBe(0x7f);
+    expect(packMonochrome(grey, 8, 1, 176, 1).data[0]).toBe(0xbf);
+  });
 });
 
 describe('buildPrelude', () => {

@@ -26,7 +26,14 @@ const tsplBitmap: ProtocolAdapter = {
   id: 'tspl-bitmap',
   name: 'TSPL bitmap',
   build(input) {
-    const mono = packMonochrome(input.pixels, input.width, input.height);
+    const mono = packMonochrome(
+      input.pixels,
+      input.width,
+      input.height,
+      input.media.monoThreshold ?? 128,
+      input.media.offsetXDots ?? 0,
+      input.media.offsetYDots ?? 0,
+    );
     return {
       data: buildTsplJob(mono, {
         media: input.media,

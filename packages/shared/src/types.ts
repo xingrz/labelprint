@@ -162,6 +162,11 @@ export interface MediaProfile {
   speed: number;
   /** Feed direction hint for protocols that expose one. */
   direction: 0 | 1;
+  /** Optional raster correction in device dots before protocol packing. */
+  offsetXDots?: number;
+  offsetYDots?: number;
+  /** Higher values turn more antialiased grey pixels into ink. */
+  monoThreshold?: number;
 }
 
 export interface PrintTargetConfig {
@@ -179,6 +184,11 @@ export interface PrintTargetConfig {
   speed?: number;
   /** Feed direction hint for protocols that expose one. */
   direction?: 0 | 1;
+  /** Optional raster correction in device dots before protocol packing. */
+  offsetXDots?: number;
+  offsetYDots?: number;
+  /** Higher values turn more antialiased grey pixels into ink. */
+  monoThreshold?: number;
   /** usb: raw USB device path, e.g. /dev/usb/lp0 on Linux. */
   device?: string;
   /** cups: raw queue name (e.g. tspl_raw); optional remote server "host:631". */

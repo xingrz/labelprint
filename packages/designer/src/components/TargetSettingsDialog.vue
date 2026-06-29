@@ -74,8 +74,11 @@ function normalizeTarget(): PrintTargetConfig {
   if (p.format !== 'tspl-bitmap') return target;
   target.dpi = Number(p.dpi) || 203;
   target.density = clamp(Number(p.density), 0, 15, 10);
-  target.speed = clamp(Number(p.speed), 1, 8, 4);
+  target.speed = clamp(Number(p.speed), 1, 8, p.delivery === 'web-usb' ? 1 : 4);
   target.direction = p.direction === 0 ? 0 : 1;
+  target.offsetXDots = clamp(Number(p.offsetXDots), -64, 64, 0);
+  target.offsetYDots = clamp(Number(p.offsetYDots), -64, 64, 0);
+  target.monoThreshold = clamp(Number(p.monoThreshold), 1, 254, 128);
   if (p.delivery === 'usb') target.device = p.device;
   if (p.delivery === 'cups') {
     target.cupsQueue = p.cupsQueue;
@@ -133,8 +136,11 @@ function applyPreset(preset: TargetPreset): void {
   if (next.format === 'tspl-bitmap') {
     next.dpi ??= 203;
     next.density ??= 10;
-    next.speed ??= 4;
-    next.direction ??= 1;
+    next.speed ??= preset === 'web-usb' ? 1 : 4;
+    next.direction ??= preset === 'web-usb' ? 0 : 1;
+    next.offsetXDots ??= 0;
+    next.offsetYDots ??= 0;
+    next.monoThreshold ??= 128;
   }
   if (next.delivery === 'network') next.port ??= 9100;
   if (next.delivery === 'web-bluetooth') {
@@ -367,6 +373,18 @@ watch(
                 <option :value="1">1</option>
                 <option :value="0">0</option>
               </select>
+            </label>
+          </div>
+
+          <div v-if="usesTsplSettings" class="grid3">
+            <label>{{ t('targets.offsetX') }}
+              <input type="number" min="-64" max="64" step="1" v-model.number="draft.offsetXDots" />
+            </label>
+            <label>{{ t('targets.offsetY') }}
+              <input type="number" min="-64" max="64" step="1" v-model.number="draft.offsetYDots" />
+            </label>
+            <label>{{ t('targets.monoThreshold') }}
+              <input type="number" min="1" max="254" step="1" v-model.number="draft.monoThreshold" />
             </label>
           </div>
 

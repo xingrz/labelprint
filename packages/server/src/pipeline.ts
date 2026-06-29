@@ -67,6 +67,9 @@ export function effectiveTargetMedia(doc: TemplateDoc, target?: PrintTargetConfi
     density: target?.density ?? DEFAULT_PROFILE.density,
     speed: target?.speed ?? DEFAULT_PROFILE.speed,
     direction: target?.direction ?? DEFAULT_PROFILE.direction,
+    offsetXDots: target?.offsetXDots,
+    offsetYDots: target?.offsetYDots,
+    monoThreshold: target?.monoThreshold,
   };
 }
 

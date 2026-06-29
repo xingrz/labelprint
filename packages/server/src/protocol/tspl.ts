@@ -23,13 +23,19 @@ export function packMonochrome(
   width: number,
   height: number,
   threshold = 128,
+  offsetXDots = 0,
+  offsetYDots = 0,
 ): Monochrome {
   const bytesPerRow = Math.ceil(width / 8);
   const data = Buffer.alloc(bytesPerRow * height, 0xff); // default white; padding bits stay white
   for (let y = 0; y < height; y++) {
     const rowBase = y * bytesPerRow;
+    const srcY = y - offsetYDots;
+    if (srcY < 0 || srcY >= height) continue;
     for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
+      const srcX = x - offsetXDots;
+      if (srcX < 0 || srcX >= width) continue;
+      const i = (srcY * width + srcX) * 4;
       const a = pixels[i + 3] ?? 0;
       const r = pixels[i] ?? 0;
       const g = pixels[i + 1] ?? 0;
