@@ -112,9 +112,11 @@ USB device path, CUPS raw queue, and network socket run on the LabelPrint host.
 | `POST` | `/api/targets/:targetId/templates/:templateId/preview` | Render a target-specific PNG preview. |
 | `POST` | `/api/targets/:targetId/templates/:templateId/render-job?copies=1` | Generate raw job bytes for the target. |
 | `POST` | `/api/targets/:targetId/templates/:templateId/print?copies=1` | Print with a server-side target. |
+| `POST` | `/api/targets/:targetId/templates/:templateId/history?copies=1` | Record a completed browser-managed print action. |
 
-The preview, render-job, and print endpoints accept template parameters directly
-as either JSON or `application/x-www-form-urlencoded` fields.
+The preview, render-job, print, and browser-managed history endpoints accept
+template parameters directly as either JSON or
+`application/x-www-form-urlencoded` fields.
 
 JSON example:
 

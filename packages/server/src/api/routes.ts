@@ -2,6 +2,9 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   collectParams,
   syncParamDefs,
+  type PrintDelivery,
+  type PrintJobFormat,
+  type PrintRecord,
   type PrintRequest,
   type PrintTargetConfig,
   type TemplateDoc,
@@ -38,6 +41,10 @@ interface CopiesQuery {
   copies?: string | number;
 }
 
+interface ClientPrintHistoryQuery extends CopiesQuery {
+  bytes?: string | number;
+}
+
 function directValues(body: unknown): Record<string, string> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
   const values: Record<string, string> = {};
@@ -68,9 +75,18 @@ function printRequestFromPath(
   };
 }
 
-async function addPrintHistory(req: PrintRequest, outcome: Awaited<ReturnType<typeof runPrint>>): Promise<void> {
+interface HistoryOutcome {
+  target: string;
+  format: PrintJobFormat;
+  delivery: PrintDelivery;
+  ok: boolean;
+  detail: string;
+  job: { widthDots: number; heightDots: number };
+}
+
+async function addPrintHistory(req: PrintRequest, outcome: HistoryOutcome): Promise<PrintRecord> {
   const tmpl = await repos.templates.get(req.templateId);
-  await addHistory({
+  const rec: PrintRecord = {
     id: `h_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`,
     ts: nowIso(),
     templateId: req.templateId,
@@ -85,7 +101,46 @@ async function addPrintHistory(req: PrintRequest, outcome: Awaited<ReturnType<ty
     detail: outcome.detail,
     widthDots: outcome.job.widthDots,
     heightDots: outcome.job.heightDots,
-  });
+  };
+  await addHistory(rec);
+  return rec;
+}
+
+function isClientDelivery(delivery: PrintDelivery): boolean {
+  return (
+    delivery === 'download' ||
+    delivery === 'browser-dialog' ||
+    delivery === 'web-bluetooth' ||
+    delivery === 'web-usb'
+  );
+}
+
+function formatLabel(format: PrintJobFormat): string {
+  if (format === 'pdf') return 'PDF';
+  if (format === 'browser-print-page') return 'browser print page';
+  if (format === 'tspl-bitmap') return 'TSPL';
+  return format;
+}
+
+function optionalPositiveInt(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+}
+
+function clientPrintDetail(target: PrintTargetConfig, query: ClientPrintHistoryQuery): string {
+  const bytes = optionalPositiveInt(query.bytes);
+  switch (target.delivery) {
+    case 'download':
+      return `downloaded ${formatLabel(target.format)} by browser`;
+    case 'browser-dialog':
+      return 'opened browser print dialog';
+    case 'web-bluetooth':
+      return bytes ? `sent ${bytes} bytes by browser via Web Bluetooth` : 'sent by browser via Web Bluetooth';
+    case 'web-usb':
+      return bytes ? `sent ${bytes} bytes by browser via WebUSB` : 'sent by browser via WebUSB';
+    default:
+      return `handled by browser-managed ${target.delivery}`;
+  }
 }
 
 export async function registerApi(app: FastifyInstance): Promise<void> {
@@ -209,6 +264,11 @@ export async function registerApi(app: FastifyInstance): Promise<void> {
     '/api/targets/:targetId/templates/:templateId/render-job/:copies',
     async (req, reply) => sendRenderedJob(printRequestFromPath(req.params, req.body), reply),
   );
+  app.post<{ Params: TargetTemplateParams; Querystring: ClientPrintHistoryQuery; Body: unknown }>(
+    '/api/targets/:targetId/templates/:templateId/history',
+    async (req, reply) =>
+      sendClientPrintHistory(printRequestFromPath(req.params, req.body, req.query), req.query, reply),
+  );
 
   // ---- print ----
   app.post<{ Params: TargetTemplateParams; Querystring: CopiesQuery; Body: unknown }>(
@@ -251,6 +311,47 @@ async function sendPrint(req: PrintRequest, reply: FastifyReply) {
     const outcome = await runPrint(req, repos);
     await addPrintHistory(req, outcome);
     return outcome;
+  } catch (e: unknown) {
+    return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+async function sendClientPrintHistory(
+  req: PrintRequest,
+  query: ClientPrintHistoryQuery,
+  reply: FastifyReply,
+) {
+  try {
+    const [tmpl, target] = await Promise.all([
+      repos.templates.get(req.templateId),
+      req.targetId ? repos.targets.get(req.targetId) : undefined,
+    ]);
+    if (!tmpl) return reply.code(404).send({ error: 'Template not found' });
+    if (!target) return reply.code(404).send({ error: 'Target not found' });
+    if (!isClientDelivery(target.delivery)) {
+      return reply.code(400).send({ error: 'Server-managed targets must use the print endpoint' });
+    }
+
+    let widthDots: number;
+    let heightDots: number;
+    if (target.format === 'tspl-bitmap') {
+      const rendered = await renderJob(req, repos);
+      widthDots = rendered.job.widthDots;
+      heightDots = rendered.job.heightDots;
+    } else {
+      const preview = await renderPreviewPng(tmpl, req.values, target.dpi ?? 203);
+      widthDots = preview.width;
+      heightDots = preview.height;
+    }
+    const outcome: HistoryOutcome = {
+      target: target.name,
+      format: target.format,
+      delivery: target.delivery,
+      ok: true,
+      detail: clientPrintDetail(target, query),
+      job: { widthDots, heightDots },
+    };
+    return addPrintHistory(req, outcome);
   } catch (e: unknown) {
     return reply.code(400).send({ ok: false, error: e instanceof Error ? e.message : String(e) });
   }

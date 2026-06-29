@@ -48,6 +48,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(values),
     }),
+  recordClientPrint: (
+    targetId: string,
+    templateId: string,
+    values: Record<string, string>,
+    copies = 1,
+    opts: { bytes?: number } = {},
+  ) => {
+    const qs = new URLSearchParams({ copies: String(copies) });
+    if (opts.bytes && Number.isFinite(opts.bytes)) qs.set('bytes', String(Math.floor(opts.bytes)));
+    return j<PrintRecord>(`/api/targets/${targetId}/templates/${templateId}/history?${qs.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify(values),
+    });
+  },
 
   history: () => j<PrintRecord[]>('/api/history'),
   deleteHistory: (id: string) => j<{ deleted: boolean }>(`/api/history/${id}`, { method: 'DELETE' }),

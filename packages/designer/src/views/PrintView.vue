@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Copy, Eye, Maximize2, Printer as PrinterIcon, Settings, TerminalSquare, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import type { PrintTargetConfig } from '@labelprint/shared';
 import { t } from '../lib/i18n';
-import { printNow, printParams, printTemplate, saveTarget, selectPrintTemplate, state } from '../lib/store';
+import { loadHistory, printNow, printParams, printTemplate, saveTarget, selectPrintTemplate, state } from '../lib/store';
+import { api } from '../lib/api';
 import { makeImagePdfBlob, pdfFileName } from '../lib/pdf';
 import { connectTsplWebBluetooth } from '../lib/webBluetooth';
 import { connectTsplWebUsb } from '../lib/webUsb';
@@ -246,6 +247,7 @@ async function downloadPdf(target: PrintTargetConfig): Promise<void> {
   });
   downloadBlob(pdf, pdfFileName(tmpl.name));
   state.status = t('status.pdfDownloaded', { target: target.name });
+  await recordClientPrint(target);
 }
 
 async function downloadTspl(target: PrintTargetConfig): Promise<void> {
@@ -254,6 +256,7 @@ async function downloadTspl(target: PrintTargetConfig): Promise<void> {
   const res = await requestRenderedJob(target);
   downloadBlob(await res.blob(), `${pdfFileName(tmpl.name).replace(/\.pdf$/i, '')}.tspl`);
   state.status = t('status.tsplDownloaded', { target: target.name });
+  await recordClientPrint(target);
 }
 
 async function requestRenderedJob(target: PrintTargetConfig): Promise<Response> {
@@ -274,6 +277,7 @@ async function printWebBluetoothTspl(target: PrintTargetConfig): Promise<void> {
     const job = new Uint8Array(await res.arrayBuffer());
     const sent = await connection.write(job);
     state.status = t('status.bluetoothSent', { target: target.name, bytes: sent.bytes, device: sent.deviceName });
+    await recordClientPrint(target, { bytes: sent.bytes });
   } finally {
     connection.close();
   }
@@ -287,8 +291,19 @@ async function printWebUsbTspl(target: PrintTargetConfig): Promise<void> {
     const sent = await connection.write(job);
     await rememberWebUsbDevice(target, connection.deviceInfo);
     state.status = t('status.webUsbSent', { target: target.name, bytes: sent.bytes, device: sent.deviceName });
+    await recordClientPrint(target, { bytes: sent.bytes });
   } finally {
     await connection.close();
+  }
+}
+
+async function recordClientPrint(target: PrintTargetConfig, opts: { bytes?: number } = {}): Promise<void> {
+  if (!state.printTemplateId) return;
+  try {
+    await api.recordClientPrint(target.id, state.printTemplateId, state.printValues, state.printCopies, opts);
+    await loadHistory();
+  } catch (e) {
+    console.warn('Failed to record browser-managed print', e);
   }
 }
 
@@ -376,6 +391,7 @@ img { display: block; width: 100%; height: 100%; object-fit: fill; }
   frame.contentWindow?.focus();
   frame.contentWindow?.print();
   state.status = t('status.browserPrintOpened', { target: target.name });
+  await recordClientPrint(target);
 }
 
 async function doPrint(): Promise<void> {

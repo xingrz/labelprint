@@ -91,6 +91,7 @@ The public print API is resource-oriented:
 - `POST /api/targets/:targetId/templates/:templateId/preview`
 - `POST /api/targets/:targetId/templates/:templateId/render-job?copies=1`
 - `POST /api/targets/:targetId/templates/:templateId/print?copies=1`
+- `POST /api/targets/:targetId/templates/:templateId/history?copies=1`
 
 Those endpoints accept template parameters directly as JSON or form fields. The
 pipeline can keep using `PrintRequest` internally, but do not expose that
@@ -99,6 +100,10 @@ structured request shape as the public API.
 Server-side delivery mechanisms live under `packages/server/src/transport/`.
 The REST print pipeline should reject browser-managed targets instead of
 pretending the server can perform those user-agent actions.
+The target/template history endpoint is only a browser-managed target
+confirmation hook after the UI has downloaded, opened a print dialog, or sent
+bytes through browser hardware APIs; it should not be treated as a delivery
+mechanism.
 
 ## Runtime Data
 
