@@ -93,6 +93,7 @@ function normalizeTarget(): PrintTargetConfig {
     target.bleServiceUuid = p.bleServiceUuid?.trim();
     target.bleCharacteristicUuid = p.bleCharacteristicUuid?.trim();
     target.bleChunkSize = clamp(Number(p.bleChunkSize), 20, 512, 20);
+    target.bleChunkDelayMs = clamp(Number(p.bleChunkDelayMs), 0, 1000, 20);
     target.bleWriteMode = p.bleWriteMode === 'with-response' ? 'with-response' : 'without-response';
   }
   if (p.delivery === 'web-usb') {
@@ -145,7 +146,10 @@ function applyPreset(preset: TargetPreset): void {
   }
   if (next.delivery === 'network') next.port ??= 9100;
   if (next.delivery === 'web-bluetooth') {
+    next.bleServiceUuid ??= '0xff00';
+    next.bleCharacteristicUuid ??= '0xff02';
     next.bleChunkSize ??= 20;
+    next.bleChunkDelayMs ??= 20;
     next.bleWriteMode ??= 'without-response';
   }
   if (next.delivery === 'web-usb') {
@@ -421,6 +425,9 @@ watch(
               </label>
               <label>{{ t('targets.bleChunkSize') }}
                 <input type="number" min="20" max="512" step="1" v-model.number="draft.bleChunkSize" />
+              </label>
+              <label>{{ t('targets.bleChunkDelayMs') }}
+                <input type="number" min="0" max="1000" step="1" v-model.number="draft.bleChunkDelayMs" />
               </label>
               <label>{{ t('targets.bleWriteMode') }}
                 <select v-model="draft.bleWriteMode">

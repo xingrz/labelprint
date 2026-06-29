@@ -202,6 +202,7 @@ export interface PrintTargetConfig {
   bleServiceUuid?: string;
   bleCharacteristicUuid?: string;
   bleChunkSize?: number;
+  bleChunkDelayMs?: number;
   bleWriteMode?: 'with-response' | 'without-response';
   /** web-usb: optional chooser filter and writable OUT endpoint override. */
   webUsbVendorId?: number;

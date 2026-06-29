@@ -72,8 +72,9 @@ export async function connectTsplWebBluetooth(target: PrintTargetConfig): Promis
       deviceName,
       async write(data: Uint8Array): Promise<WebBluetoothSendResult> {
         const chunkSize = clampInt(target.bleChunkSize, 20, 512, 20);
+        const chunkDelayMs = clampInt(target.bleChunkDelayMs, 0, 1000, 20);
         const mode = target.bleWriteMode ?? 'without-response';
-        await writeChunks(characteristic, data, { chunkSize, mode });
+        await writeChunks(characteristic, data, { chunkSize, chunkDelayMs, mode });
         await sleep(120);
         return { deviceName, bytes: data.byteLength };
       },
@@ -104,11 +105,12 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
 async function writeChunks(
   characteristic: BluetoothCharacteristicLike,
   data: Uint8Array,
-  opts: { chunkSize: number; mode: 'with-response' | 'without-response' },
+  opts: { chunkSize: number; chunkDelayMs: number; mode: 'with-response' | 'without-response' },
 ): Promise<void> {
   for (let offset = 0; offset < data.byteLength; offset += opts.chunkSize) {
     const chunk = data.subarray(offset, offset + opts.chunkSize);
     await writeChunk(characteristic, chunk, opts.mode);
+    if (opts.chunkDelayMs > 0) await sleep(opts.chunkDelayMs);
   }
 }
 

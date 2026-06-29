@@ -85,6 +85,14 @@ bytes to a configured GATT characteristic; WebUSB TSPL uses
 Normal web pages cannot reliably choose a physical device or silently print, so
 keep that UX explicit.
 
+Local hardware probing confirmed one private BLE UART-style TSPL path that is
+worth preserving as the seeded Web Bluetooth default: write TSPL bytes to
+service `0xff00`, characteristic `0xff02`, using write without response, 20-byte
+chunks, and about 20 ms between chunks. Status notifications for the `~HS\r\n`
+probe arrived on service `0xff00`, characteristic `0xff01`. The same printer also
+advertised several other private writable services, so treat these UUIDs as a
+known working default rather than a universal Bluetooth printing standard.
+
 The public print API is resource-oriented:
 
 - `POST /api/templates/:templateId/preview`
