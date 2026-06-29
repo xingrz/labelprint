@@ -93,6 +93,8 @@ chunks, and a 2 ms delay between chunks. A 5 ms delay also worked in testing;
 service `0xff00`, characteristic `0xff01`. The same printer also advertised
 several other private writable services, so treat these UUIDs as a known working
 default rather than a universal Bluetooth printing standard.
+In the tested browser, Web Bluetooth still required the device chooser for each
+print, so do not present persistent BLE device reuse as a reliable workflow.
 
 The public print API is resource-oriented:
 

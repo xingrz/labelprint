@@ -290,7 +290,6 @@ async function printWebBluetoothTspl(target: PrintTargetConfig): Promise<void> {
       bluetoothProgress.value = progress;
       msg.value = t('print.bluetoothProgress', { sent: progress.sentBytes, total: progress.totalBytes });
     });
-    await rememberWebBluetoothDevice(target, connection.deviceInfo);
     state.status = t('status.bluetoothSent', { target: target.name, bytes: sent.bytes, device: sent.deviceName });
     await recordClientPrint(target, { bytes: sent.bytes });
   } finally {
@@ -320,19 +319,6 @@ async function recordClientPrint(target: PrintTargetConfig, opts: { bytes?: numb
   } catch (e) {
     console.warn('Failed to record browser-managed print', e);
   }
-}
-
-async function rememberWebBluetoothDevice(
-  target: PrintTargetConfig,
-  info: { id?: string; name?: string },
-): Promise<void> {
-  if (!info.id) return;
-  if (target.bleDeviceId === info.id && target.bleDeviceName === info.name) return;
-  await saveTarget({
-    ...target,
-    bleDeviceId: info.id,
-    bleDeviceName: info.name,
-  });
 }
 
 async function rememberWebUsbDevice(

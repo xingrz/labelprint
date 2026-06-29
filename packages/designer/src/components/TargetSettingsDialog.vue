@@ -89,8 +89,6 @@ function normalizeTarget(): PrintTargetConfig {
     target.port = Number(p.port) || 9100;
   }
   if (p.delivery === 'web-bluetooth') {
-    target.bleDeviceId = p.bleDeviceId;
-    target.bleDeviceName = p.bleDeviceName;
     target.bleNamePrefix = p.bleNamePrefix?.trim();
     target.bleServiceUuid = p.bleServiceUuid?.trim();
     target.bleCharacteristicUuid = p.bleCharacteristicUuid?.trim();

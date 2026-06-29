@@ -26,21 +26,14 @@ interface BluetoothServerLike {
 }
 
 interface BluetoothDeviceLike {
-  id?: string;
   name?: string;
   gatt?: BluetoothServerLike;
 }
 
 interface BluetoothNavigatorLike extends Navigator {
   bluetooth?: {
-    getDevices?: () => Promise<BluetoothDeviceLike[]>;
     requestDevice(options: RequestDeviceOptionsLike): Promise<BluetoothDeviceLike>;
   };
-}
-
-export interface WebBluetoothDeviceInfo {
-  id?: string;
-  name?: string;
 }
 
 export interface WebBluetoothSendResult {
@@ -57,8 +50,6 @@ export interface WebBluetoothSendProgress {
 
 export interface WebBluetoothPrinterConnection {
   deviceName: string;
-  deviceInfo: WebBluetoothDeviceInfo;
-  reused: boolean;
   write(data: Uint8Array, onProgress?: (progress: WebBluetoothSendProgress) => void): Promise<WebBluetoothSendResult>;
   close(): void;
 }
@@ -76,9 +67,7 @@ export async function connectTsplWebBluetooth(target: PrintTargetConfig): Promis
     ? { filters: [{ namePrefix }], optionalServices: [serviceUuid] }
     : { acceptAllDevices: true, optionalServices: [serviceUuid] };
 
-  const authorizedDevice = await findAuthorizedDevice(nav, target);
-  const device = authorizedDevice ?? (await nav.bluetooth.requestDevice(options));
-  const reused = !!authorizedDevice;
+  const device = await nav.bluetooth.requestDevice(options);
   if (!device.gatt) throw new Error(t('print.bluetoothGattUnavailable'));
 
   const server = await device.gatt.connect();
@@ -88,8 +77,6 @@ export async function connectTsplWebBluetooth(target: PrintTargetConfig): Promis
     const deviceName = device.name || t('print.bluetoothDevice');
     return {
       deviceName,
-      deviceInfo: { id: device.id, name: device.name },
-      reused,
       async write(
         data: Uint8Array,
         onProgress?: (progress: WebBluetoothSendProgress) => void,
@@ -109,15 +96,6 @@ export async function connectTsplWebBluetooth(target: PrintTargetConfig): Promis
     server.disconnect?.();
     throw e;
   }
-}
-
-async function findAuthorizedDevice(
-  nav: BluetoothNavigatorLike,
-  target: PrintTargetConfig,
-): Promise<BluetoothDeviceLike | null> {
-  if (!target.bleDeviceId || !nav.bluetooth?.getDevices) return null;
-  const devices = await nav.bluetooth.getDevices();
-  return devices.find((device) => device.id === target.bleDeviceId) ?? null;
 }
 
 function parseBluetoothUuid(raw: string | undefined): BluetoothUuid | null {

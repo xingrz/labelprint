@@ -198,8 +198,6 @@ export interface PrintTargetConfig {
   host?: string;
   port?: number;
   /** web-bluetooth: optional chooser filter and writable GATT endpoint. */
-  bleDeviceId?: string;
-  bleDeviceName?: string;
   bleNamePrefix?: string;
   bleServiceUuid?: string;
   bleCharacteristicUuid?: string;
