@@ -57,6 +57,9 @@ http://localhost:5179
 6. Print. For server-side targets, open the `CLI` dialog to copy an equivalent
    `curl` command.
 
+Main screens are addressable with hash routes such as `#/templates`,
+`#/design/<template-id>`, `#/print/<template-id>`, and `#/history`.
+
 ## Docker Development
 
 Docker is useful when you want the same Linux font and rendering environment as

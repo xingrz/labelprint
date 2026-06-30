@@ -9,6 +9,7 @@ import {
   openTemplate,
   removeTemplate,
   selectPrintTemplate,
+  setActiveView,
   state,
 } from '../lib/store';
 
@@ -24,7 +25,7 @@ function onNew(): void {
 }
 function onPrint(t: TemplateDoc): void {
   selectPrintTemplate(t.id);
-  state.activeView = 'print';
+  setActiveView('print');
 }
 async function onDelete(tmpl: TemplateDoc): Promise<void> {
   const ok = await confirmDialog({

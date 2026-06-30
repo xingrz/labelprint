@@ -18,6 +18,33 @@ import { t } from './i18n';
 
 type AlignKind = 'left' | 'hcenter' | 'right' | 'top' | 'vmiddle' | 'bottom';
 export type ViewName = 'templates' | 'design' | 'print' | 'history';
+const viewNames: readonly ViewName[] = ['templates', 'design', 'print', 'history'];
+
+interface HashRoute {
+  view: ViewName;
+  templateId?: string;
+}
+
+function isViewName(value: string): value is ViewName {
+  return viewNames.includes(value as ViewName);
+}
+
+function parseHashRoute(hash = typeof window === 'undefined' ? '' : window.location.hash): HashRoute | null {
+  const raw = hash.replace(/^#/, '').replace(/^\/+/, '');
+  if (!raw) return null;
+  const [viewRaw, templateRaw] = raw.split('/');
+  if (!viewRaw || !isViewName(viewRaw)) return null;
+  let templateId: string | undefined;
+  try {
+    templateId = templateRaw ? decodeURIComponent(templateRaw) : undefined;
+  } catch {
+    templateId = undefined;
+  }
+  return {
+    view: viewRaw,
+    templateId,
+  };
+}
 
 function loadPanels(): { left: number; right: number } {
   try {
@@ -46,6 +73,7 @@ function loadPrint(): SavedPrint {
   }
 }
 const savedPrint = loadPrint();
+const initialRoute = parseHashRoute();
 
 interface State {
   doc: TemplateDoc | null;
@@ -75,7 +103,7 @@ export const state = reactive<State>({
   status: '',
   dirty: false,
   fonts: [],
-  activeView: savedPrint.v ?? 'templates',
+  activeView: initialRoute?.view ?? savedPrint.v ?? 'templates',
   history: [],
   printTemplateId: savedPrint.t ?? '',
   printValues: savedPrint.vals ?? {},
@@ -83,6 +111,62 @@ export const state = reactive<State>({
   printCopies: savedPrint.c ?? 1,
   panels: loadPanels(),
 });
+
+let hashRoutingReady = false;
+
+function hashForRoute(route: HashRoute): string {
+  const id = route.templateId ? `/${encodeURIComponent(route.templateId)}` : '';
+  return `#/${route.view}${id}`;
+}
+
+function routeFromState(view = state.activeView): HashRoute {
+  if (view === 'design' && state.doc?.id) return { view, templateId: state.doc.id };
+  if (view === 'print' && state.printTemplateId) return { view, templateId: state.printTemplateId };
+  return { view };
+}
+
+function writeHashRoute(route: HashRoute, replace = false): void {
+  if (typeof window === 'undefined') return;
+  const nextHash = hashForRoute(route);
+  if (window.location.hash === nextHash) return;
+  if (replace) {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+  } else {
+    window.location.hash = nextHash;
+  }
+}
+
+function applyHashRoute(route: HashRoute): void {
+  if (route.view === 'design' && route.templateId && state.templates.some((t) => t.id === route.templateId)) {
+    selectTemplate(route.templateId);
+  }
+  if (
+    route.view === 'print' &&
+    route.templateId &&
+    state.templates.some((t) => t.id === route.templateId) &&
+    route.templateId !== state.printTemplateId
+  ) {
+    selectPrintTemplate(route.templateId, { syncHash: false });
+  }
+  state.activeView = route.view;
+  if (route.view === 'history') void loadHistory();
+}
+
+export function initHashRouting(): void {
+  if (typeof window === 'undefined' || hashRoutingReady) return;
+  hashRoutingReady = true;
+  const route = parseHashRoute();
+  if (route) applyHashRoute(route);
+  else writeHashRoute(routeFromState(), true);
+  window.addEventListener('hashchange', () => {
+    const next = parseHashRoute();
+    if (next) {
+      applyHashRoute(next);
+      writeHashRoute(routeFromState(next.view), true);
+    }
+    else writeHashRoute(routeFromState(), true);
+  });
+}
 
 // Persist the print view (template + filled values + target + copies + active tab).
 watch(
@@ -160,10 +244,20 @@ export async function loadAll(): Promise<void> {
     state.templates = templates;
     state.targets = targets;
     ensurePrintTarget();
+    const route = parseHashRoute();
+    if (route?.view === 'design' && route.templateId) selectTemplate(route.templateId);
     if (!state.doc && templates.length) selectTemplate(templates[0]!.id);
     // Keep the restored print template + values if it still exists; else pick the first.
+    if (route?.view === 'print' && route.templateId && templates.some((t) => t.id === route.templateId)) {
+      if (state.printTemplateId !== route.templateId) selectPrintTemplate(route.templateId, { syncHash: false });
+    }
     if (templates.length && (!state.printTemplateId || !templates.some((t) => t.id === state.printTemplateId)))
-      selectPrintTemplate(templates[0]!.id);
+      selectPrintTemplate(templates[0]!.id, { syncHash: false });
+    if (route) {
+      applyHashRoute(route);
+      writeHashRoute(routeFromState(route.view), true);
+    }
+    else writeHashRoute(routeFromState(), true);
     await loadHistory();
     // Fonts can be a slow first scan on the print host — load without blocking.
     api.fonts().then((r) => (state.fonts = r.families)).catch(() => undefined);
@@ -400,13 +494,13 @@ export async function duplicateTemplateById(id: string): Promise<void> {
 /** Open a template in the designer. */
 export function openTemplate(id: string): void {
   selectTemplate(id);
-  state.activeView = 'design';
+  setActiveView('design');
 }
 
 /** Create a new template and open it in the designer. */
 export function createTemplate(media: MediaProfile): void {
   newTemplate(media);
-  state.activeView = 'design';
+  setActiveView('design');
 }
 
 export async function saveTarget(target: PrintTargetConfig): Promise<PrintTargetConfig> {
@@ -461,9 +555,10 @@ export function setParamMultiline(key: string, value: boolean): void {
 
 // ---- views / panels ----
 
-export function setActiveView(v: ViewName): void {
+export function setActiveView(v: ViewName, opts: { replace?: boolean; syncHash?: boolean } = {}): void {
   state.activeView = v;
   if (v === 'history') void loadHistory();
+  if (opts.syncHash !== false) writeHashRoute(routeFromState(v), opts.replace);
 }
 
 export function setPanelWidth(side: 'left' | 'right', px: number): void {
@@ -477,12 +572,13 @@ export function setPanelWidth(side: 'left' | 'right', px: number): void {
 
 // ---- print view ----
 
-export function selectPrintTemplate(id: string): void {
+export function selectPrintTemplate(id: string, opts: { syncHash?: boolean } = {}): void {
   state.printTemplateId = id;
   const t = state.templates.find((x) => x.id === id);
   const v: Record<string, string> = {};
   if (t) for (const key of collectParams(t)) v[key] = t.defaults?.[key] ?? '';
   state.printValues = v;
+  if (opts.syncHash !== false && state.activeView === 'print') writeHashRoute(routeFromState('print'), true);
 }
 
 export async function printNow(): Promise<void> {
@@ -519,5 +615,5 @@ export function reprintFrom(rec: PrintRecord): void {
   state.printValues = { ...rec.values };
   state.printCopies = rec.copies;
   if (rec.targetId) state.printTargetId = rec.targetId;
-  state.activeView = 'print';
+  setActiveView('print');
 }

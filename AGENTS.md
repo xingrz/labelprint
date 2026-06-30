@@ -36,7 +36,8 @@ not the product identity.
 - `packages/server/src/protocol/`: output protocol adapters.
 - `packages/server/src/transport/`: delivery adapters.
 - `packages/server/src/store/`: file-backed repositories and seed data.
-- `packages/designer/src/lib/store.ts`: main client-side reactive state.
+- `packages/designer/src/lib/store.ts`: main client-side reactive state and
+  hash-route synchronization.
 - `packages/designer/src/lib/i18n.ts`: English/Chinese UI strings.
 - `packages/designer/src/lib/pdf.ts`: small browser-side raster PDF writer.
 - `packages/designer/src/lib/theme.ts`: light/dark preference handling.
